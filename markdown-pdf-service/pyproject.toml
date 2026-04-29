@@ -1,0 +1,10 @@
+[project]
+name = "enterprise-markdown-pdf-service-public"
+version = "0.1.0"
+description = "Sanitized Markdown renderer tool server stub"
+requires-python = ">=3.11"
+dependencies = ["fastapi", "uvicorn[standard]", "pydantic"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
