@@ -1,2 +1,0 @@
-# This public report snapshot omits the private lockfile.
-# Run `cargo generate-lockfile` in rust-service to create one for local builds.
