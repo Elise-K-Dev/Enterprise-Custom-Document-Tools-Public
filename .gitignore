@@ -1,0 +1,40 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime data
+runtime/**
+!runtime/.gitkeep
+**/DB/**
+**/processed_md/**
+**/output/**
+**/outputs/**
+**/*.db
+**/*.sqlite
+
+# Generated documents and customer files
+**/*.docx
+**/*.xlsx
+**/*.xls
+**/*.zip
+**/*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Rust
+rust-service/target/
+
+# Local editor
+.vscode/
+.idea/
+.DS_Store
