@@ -1,0 +1,9 @@
+﻿* text=auto
+*.md text working-tree-encoding=UTF-8
+*.py text working-tree-encoding=UTF-8
+*.rs text working-tree-encoding=UTF-8
+*.json text working-tree-encoding=UTF-8
+*.yml text working-tree-encoding=UTF-8
+*.yaml text working-tree-encoding=UTF-8
+*.toml text working-tree-encoding=UTF-8
+*.sh text eol=lf working-tree-encoding=UTF-8

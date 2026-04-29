@@ -225,4 +225,4 @@ WEB_TOOL_SERVER_URL="${WEB_TOOL_SERVER_URL:-http://127.0.0.1:8004}" \
 "${ROOT_DIR}/Port-Project/scripts/sync_openwebui_runtime.sh"
 
 echo "[INFO] Open WebUI started: http://127.0.0.1:${HOST_PORT}"
-echo "[INFO] vLLM backend: ${DOCUMENT_FILLER_API_URL:-http://host.docker.internal:8000/v1}"
+echo "[INFO] vLLM backend: http://host.docker.internal:8000/v1"

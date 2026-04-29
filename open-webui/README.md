@@ -1,11 +1,11 @@
-﻿# Open WebUI Integration Notes
+# Open WebUI Integration Notes
 
-Open WebUI??UI? tool call orchestration留?留↔퀬, ?ㅼ젣 鍮꾩쫰?덉뒪 濡쒖쭅? ?몃? ?쒕퉬?ㅻ줈 遺꾨━?⑸땲?? ?꾩옱??`Port-Project`???⑥씪 Docker Compose ?덉뿉??`open-webui`, `document-service`, `parser-service`媛 ?④퍡 ?ㅽ뻾?⑸땲??
+Open WebUI는 UI와 tool call orchestration만 맡고, 실제 비즈니스 로직은 외부 서비스로 분리합니다. 현재는 `Port-Project`의 단일 Docker Compose 안에서 `open-webui`, `document-service`, `parser-service`가 함께 실행됩니다.
 
-?ㅽ뻾 湲곗?:
+실행 기준:
 
-- 紐⑤뱺 ?고??꾩? `Port-Project` ?덉뿉???쒖옉?⑸땲??
-- ?꾩슂??HAI-H ?먯궛? `Port-Project` 猷⑦듃 ?덉쑝濡?蹂듭궗????濡쒖뺄 ?붾젆?곕━瑜??ъ슜?⑸땲??
+- 모든 런타임은 `Port-Project` 안에서 시작합니다.
+- 필요한 HAI-H 자산은 `Port-Project` 루트 안으로 복사해 둔 로컬 디렉터리를 사용합니다.
 
 ## Tool Routing
 
@@ -22,24 +22,24 @@ Open WebUI??UI? tool call orchestration留?留↔퀬, ?ㅼ젣 鍮꾩쫰?덉뒪
 
 ## Docker Network Mode
 
-Open WebUI??`port-project` Docker ?ㅽ듃?뚰겕???④퍡 遺숈뼱 ?덉쑝誘濡? ?몄뒪??IP ????쒕퉬?ㅻ챸?쇰줈 ?곌껐?⑸땲??
+Open WebUI는 `port-project` Docker 네트워크에 함께 붙어 있으므로, 호스트 IP 대신 서비스명으로 연결합니다.
 
 - `document-service` -> `http://document-service:8001/openapi.json`
 - `parser-service` -> `http://parser-service:8002/openapi.json`
 - `markdown-pdf-service` -> `http://markdown-pdf-service:8003/openapi.json`
 
-Import 媛?ν븳 ?ㅼ젙 ?뚯씪:
+Import 가능한 설정 파일:
 
 - [openwebui-rust-tools.json](/home/elise/Desktop/2026%20Dev/Port-Project/open-webui/openwebui-rust-tools.json)
 - [openwebui-python-tools.json](/home/elise/Desktop/2026%20Dev/Port-Project/open-webui/openwebui-python-tools.json)
 - [openwebui-markdown-pdf-tools.json](/home/elise/Desktop/2026%20Dev/Port-Project/open-webui/openwebui-markdown-pdf-tools.json)
 
-援ъ꽦 ?먯튃:
+구성 원칙:
 
-- Rust 怨꾩뿴 ?꾧뎄??`openwebui-rust-tools.json` ?섎굹濡?臾띠쓬
-- Python 怨꾩뿴 ?꾧뎄??`openwebui-python-tools.json` ?섎굹濡?臾띠쓬
-- Markdown PDF 怨꾩뿴 ?꾧뎄??`openwebui-markdown-pdf-tools.json` ?섎굹濡?臾띠쓬
-- ?ы듃蹂??몃? 遺꾨━ ?뚯씪? ?쒓굅
+- Rust 계열 도구는 `openwebui-rust-tools.json` 하나로 묶음
+- Python 계열 도구는 `openwebui-python-tools.json` 하나로 묶음
+- Markdown PDF 계열 도구는 `openwebui-markdown-pdf-tools.json` 하나로 묶음
+- 포트별 세부 분리 파일은 제거
 
 ## Model Backend
 
@@ -54,29 +54,49 @@ sudo bash scripts/start_openwebui_with_vllm.sh
 
 ## System Prompt Direction
 
-LLM?먮뒗 ?꾨옒 ?먯튃??二쇰뒗 ?몄씠 ?덉쟾?⑸땲??
+LLM에는 아래 원칙을 주는 편이 안전합니다.
 
-- ?대뼡 tool???몄텧?좎? 癒쇱? 寃곗젙??寃?- `Python ?뚯꽌/寃???꾧뎄`: ?뱀젙 臾몄꽌, ?낅Т蹂닿퀬 ?먮Ц, ?좎쭨蹂??묒뾽 ?대젰, 湲곗〈 湲곕줉??李얠쓣 ?뚮쭔 ?ъ슜??寃?- `?듯빀 臾몄꽌 ?쒖옉湲?: ?ш퀬, ?덈ぉ, ?꾩옱怨? 遺議깆닔?? ?④?, 援щℓ ?곗꽑?쒖쐞, 援щℓ ?덉쓽???앹꽦, 蹂닿퀬???뚯씪 ?앹꽦???ъ슜??寃?- `?듯빀 臾몄꽌 ?쒖옉湲????뚮뜑留??⑥닔: Markdown 湲곕컲 ?섎━ ?꾨즺 蹂닿퀬?? ?뺣퉬 怨꾪쉷, ?낅Т 蹂닿퀬?? ?뚯쓽濡? ?쇰컲 ?붿빟 蹂닿퀬?? 遺꾩꽍 寃곌낵瑜?PDF/Word/Excel ?뚯씪濡?留뚮뱾 ???ъ슜??寃?- ?ъ슜?먭? ?뚯씪 ?뺤떇??紐낆떆?섎㈃ 洹??뺤떇??理쒖슦?좎씠?? PDF??`render_markdown_pdf`, ?뚮뱶/Word/DOCX??`render_chat_docx`, ?묒?/Excel/XLSX??`render_chat_xlsx`瑜??몄텧??寃?- PDF ?뚯씪 ?앹꽦 ?붿껌??諛쏆쑝硫?"吏곸젒 PDF瑜??앹꽦?????녿떎"怨??듯븯吏 留먭퀬 `render_markdown_pdf`瑜??몄텧??寃?- 吏곸쟾 ?듬??대굹 ?꾩옱 ????댁슜??湲곕컲?쇰줈 "?닿굅 PDF濡??묒꽦???쇨퀬 ?섎㈃ 異붽? 寃???놁씠 Markdown 蹂몃Ц ?뺣━ ??`render_markdown_pdf`瑜??몄텧??寃?- 蹂닿퀬?? ?붿빟臾? ?낅Т蹂닿퀬, ?ш퀬?꾪솴 蹂닿퀬?쒕? ?뚮뱶/Word/DOCX濡??붿껌?섎㈃ 蹂닿퀬??蹂몃Ц??`transcript`???묒꽦????`render_chat_docx`瑜??몄텧??寃? `title`留?蹂대궡吏 留?寃?- 蹂닿퀬?? ?붿빟臾? ?낅Т蹂닿퀬, ?ш퀬?꾪솴 蹂닿퀬?쒕? ?묒?/Excel/XLSX濡??붿껌?섎㈃ ???뺤떇 蹂몃Ц??`transcript` ?먮뒗 `messages`???묒꽦????`render_chat_xlsx`瑜??몄텧??寃? `title`留?蹂대궡吏 留?寃?- PDF 臾몄꽌 ?앹꽦??洹쇨굅 臾몄꽌媛 ?꾩슂?섎㈃ `search_documents_by_rank`濡?癒쇱? 洹쇨굅瑜?李얘퀬, Markdown 蹂몃Ц ?묒꽦 ??`render_markdown_pdf`瑜??몄텧??寃?- 援щℓ ?덉쓽?쒖? 蹂닿퀬??PDF瑜??숈떆???붿껌?섎㈃ Rust ?꾧뎄濡?援щℓ ?덉쓽???ш퀬 寃곌낵瑜?留뚮뱺 ??洹?寃곌낵瑜??붿빟??Markdown 蹂닿퀬?쒕? `render_markdown_pdf`濡??뚮뜑留곹븷 寃?- ?꾩껜 ?덈ぉ, ?ш퀬 異⑸텇 ?덈ぉ, ?ш퀬 ?곹깭 ?꾪꽣, ?덈쾲/?덈챸 寃?? ?뚮え?띾룄 鍮좊Ⅸ ??議고쉶??`list_inventory_items`瑜??곗꽑 ?ъ슜??寃?- ?꾩옱怨? ?ш퀬?뺤씤?곹깭, 援щℓ ?곗꽑?쒖쐞, ?④?媛 ?ㅼ뼱媛?蹂닿퀬???뚯씪 ?붿껌? `export_inventory_report`瑜??곗꽑 ?ъ슜??寃?- 遺議??ш퀬 ?놁쓬 ?덈ぉ留?臾삳뒗 寃쎌슦??`list_shortage_items`瑜??곗꽑 ?ъ슜??寃?- ?낅Т 蹂닿퀬, ?뚯쓽濡? 遺꾩꽍 寃곌낵, ?붿빟臾몄쓣 臾몄꽌 ?뚯씪濡??붿껌?섎㈃ ?ъ슜?먭? 紐낆떆???뺤떇???뚮뜑留??꾧뎄瑜??몄텧??寃? ?뺤떇???놁쑝硫?`render_markdown_pdf`瑜??몄텧??寃?- ?섎━ ?꾨즺 蹂닿퀬?? ?뺣퉬 蹂닿퀬?? ?쇰컲 蹂닿퀬???뚯씪 ?붿껌? `create_document`媛 ?꾨땲???뺤떇??留욌뒗 ?뚮뜑留??꾧뎄瑜??ъ슜??寃?- `create_document`, `fill_document`, `export_document`??援щℓ ?덉쓽??`purchase_request` ?꾩슜?쇰줈 ?ъ슜??寃?- ?꾨씫 ?꾨뱶媛 ?덉쑝硫?`fill_document`瑜??곗꽑 ?ъ슜??寃?- ?뚯씪/RAW 蹂?섏? `parse_to_md`濡?蹂대궪 寃?- 臾몄꽌 梨꾩슦湲?珥덉븞? `fill_document_fields_ko`濡?蹂대궪 寃?- ?ъ슜?먭? `?뱀씤??, `吏꾪뻾??泥섎읆 湲띿젙 ?섏궗瑜?蹂댁씠硫?`approve_and_generate_item_document`瑜??곗꽑 ?ъ슜??寃?
+- 어떤 tool을 호출할지 먼저 결정할 것
+- `Python 파서/검색 도구`: 특정 문서, 업무보고 원문, 날짜별 작업 이력, 기존 기록을 찾을 때만 사용할 것
+- `통합 문서 제작기`: 재고, 품목, 현재고, 부족수량, 단가, 구매 우선순위, 구매 품의서 생성, 보고서 파일 생성에 사용할 것
+- `통합 문서 제작기`의 렌더링 함수: Markdown 기반 수리 완료 보고서, 정비 계획, 업무 보고서, 회의록, 일반 요약 보고서, 분석 결과를 PDF/Word/Excel 파일로 만들 때 사용할 것
+- 사용자가 파일 형식을 명시하면 그 형식이 최우선이다. PDF는 `render_markdown_pdf`, 워드/Word/DOCX는 `render_chat_docx`, 엑셀/Excel/XLSX는 `render_chat_xlsx`를 호출할 것
+- PDF 파일 생성 요청을 받으면 "직접 PDF를 생성할 수 없다"고 답하지 말고 `render_markdown_pdf`를 호출할 것
+- 직전 답변이나 현재 대화 내용을 기반으로 "이거 PDF로 작성해"라고 하면 추가 검색 없이 Markdown 본문 정리 후 `render_markdown_pdf`를 호출할 것
+- 보고서, 요약문, 업무보고, 재고현황 보고서를 워드/Word/DOCX로 요청하면 보고서 본문을 `transcript`에 작성한 뒤 `render_chat_docx`를 호출할 것. `title`만 보내지 말 것
+- 보고서, 요약문, 업무보고, 재고현황 보고서를 엑셀/Excel/XLSX로 요청하면 표 형식 본문을 `transcript` 또는 `messages`에 작성한 뒤 `render_chat_xlsx`를 호출할 것. `title`만 보내지 말 것
+- PDF 문서 생성에 근거 문서가 필요하면 `search_documents_by_rank`로 먼저 근거를 찾고, Markdown 본문 작성 후 `render_markdown_pdf`를 호출할 것
+- 구매 품의서와 보고서 PDF를 동시에 요청하면 Rust 도구로 구매 품의서/재고 결과를 만든 뒤 그 결과를 요약한 Markdown 보고서를 `render_markdown_pdf`로 렌더링할 것
+- 전체 품목, 재고 충분 품목, 재고 상태 필터, 품번/품명 검색, 소모속도 빠른 순 조회는 `list_inventory_items`를 우선 사용할 것
+- 현재고, 재고확인상태, 구매 우선순위, 단가가 들어간 보고서 파일 요청은 `export_inventory_report`를 우선 사용할 것
+- 부족/재고 없음 품목만 묻는 경우는 `list_shortage_items`를 우선 사용할 것
+- 업무 보고, 회의록, 분석 결과, 요약문을 문서 파일로 요청하면 사용자가 명시한 형식의 렌더링 도구를 호출할 것. 형식이 없으면 `render_markdown_pdf`를 호출할 것
+- 수리 완료 보고서, 정비 보고서, 일반 보고서 파일 요청은 `create_document`가 아니라 형식에 맞는 렌더링 도구를 사용할 것
+- `create_document`, `fill_document`, `export_document`는 구매 품의서 `purchase_request` 전용으로 사용할 것
+- 누락 필드가 있으면 `fill_document`를 우선 사용할 것
+- 파일/RAW 변환은 `parse_to_md`로 보낼 것
+- 문서 채우기 초안은 `fill_document_fields_ko`로 보낼 것
+- 사용자가 `승인해`, `진행해`처럼 긍정 의사를 보이면 `approve_and_generate_item_document`를 우선 사용할 것
+
 ## Example Flow
 
-1. ?ъ슜?먭? "援щℓ ?덉쓽??留뚮뱾?댁쨾, SSD 3媛??쇨퀬 ?붿껌
-2. Open WebUI媛 `create_document` ?몄텧
-3. ?묐떟??`missing_fields=["?⑺뭹?낆껜"]`媛 ?ㅻ㈃ 紐⑤뜽???ъ슜?먯뿉寃??꾩냽 吏덈Ц
-4. ?ъ슜?먭? ?낆껜瑜??듯븯硫?`fill_document` ?몄텧
-5. 紐⑤뱺 ?꾨뱶媛 梨꾩썙吏硫?`export_document` ?몄텧
+1. 사용자가 "구매 품의서 만들어줘, SSD 3개"라고 요청
+2. Open WebUI가 `create_document` 호출
+3. 응답에 `missing_fields=["납품업체"]`가 오면 모델이 사용자에게 후속 질문
+4. 사용자가 업체를 답하면 `fill_document` 호출
+5. 모든 필드가 채워지면 `export_document` 호출
 
-踰붿슜 蹂닿퀬??PDF ?먮쫫:
+범용 보고서 PDF 흐름:
 
-1. ?ъ슜?먭? "怨쇱옣?섍퍡 蹂닿퀬???섎━ ?댁뿭 PDF 留뚮뱾?댁쨾"?쇨퀬 ?붿껌
-2. ?꾩슂??洹쇨굅媛 ?덉쑝硫?`search_documents_by_rank` ?몄텧
-3. 紐⑤뜽??以묒슂???쒖쑝濡?Markdown 蹂닿퀬???묒꽦
-4. `render_markdown_pdf` ?몄텧
+1. 사용자가 "과장님께 보고할 수리 내역 PDF 만들어줘"라고 요청
+2. 필요한 근거가 있으면 `search_documents_by_rank` 호출
+3. 모델이 중요도 순으로 Markdown 보고서 작성
+4. `render_markdown_pdf` 호출
 
-援щℓ ?덉쓽?쒖? PDF 蹂닿퀬?쒕? ?숈떆???붿껌?섎뒗 ?먮쫫:
+구매 품의서와 PDF 보고서를 동시에 요청하는 흐름:
 
-1. ?ъ슜?먭? "遺議??덈ぉ 援щℓ臾몄꽌 留뚮뱾怨?蹂닿퀬??PDF??留뚮뱾?댁쨾"?쇨퀬 ?붿껌
-2. `list_shortage_items` ?먮뒗 `list_inventory_items`濡??덈ぉ ?뺤씤
-3. `generate_purchase_document_package` ??Rust 援щℓ ?덉쓽???꾧뎄濡?援щℓ臾몄꽌 ?앹꽦
-4. 援щℓ臾몄꽌 ?앹꽦 寃곌낵瑜??붿빟??Markdown 蹂닿퀬???묒꽦
-5. `render_markdown_pdf` ?몄텧
-
+1. 사용자가 "부족 품목 구매문서 만들고 보고용 PDF도 만들어줘"라고 요청
+2. `list_shortage_items` 또는 `list_inventory_items`로 품목 확인
+3. `generate_purchase_document_package` 등 Rust 구매 품의서 도구로 구매문서 생성
+4. 구매문서 생성 결과를 요약한 Markdown 보고서 작성
+5. `render_markdown_pdf` 호출
