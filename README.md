@@ -1,52 +1,203 @@
-# Enterprise Custom Document Tools
+﻿# Enterprise Custom Document Tools
 
-Open WebUI tool server collection for enterprise document search, document generation, Markdown report rendering, and controlled web page fetching.
+Open WebUI瑜??꾨윴?몃줈 ?먭퀬, ?꾧뎄??`Python ?뚯꽌/寃???꾧뎄`? `?듯빀 臾몄꽌 ?쒖옉湲? ??異뺤쑝濡?援ъ꽦???щ궡 臾몄꽌 ?먮룞???뚰겕?ㅽ럹?댁뒪?낅땲?? ?듯빀 臾몄꽌 ?쒖옉湲곕뒗 Rust 湲곕컲 援щℓ ?덉쓽臾??묒꽦湲곗? Markdown PDF/Word/Excel ?뚮뜑?щ? 臾띠뼱 ?ш퀬 議고쉶, ?덉쓽???묒꽦, 蹂닿퀬???뚯씪 ?앹꽦??泥섎━?⑸땲??
 
-This public version is a sanitized portfolio/reporting snapshot. It keeps the service architecture and implementation overview, but removes private customer data, generated documents, local account setup, private tool modules, and environment-specific secrets.
-
-## What Is Included
-
-- `rust-service`: document generation and inventory-style workflow API design.
-- `python-service`: document parsing/search API and legacy indexing helpers design.
-- `markdown-pdf-service`: Markdown to PDF, DOCX, and XLSX rendering API design.
-- `web-service`: URL-to-Markdown fetching API design for user-provided pages.
-- `open-webui`: safe example Open WebUI tool import JSON files.
-- `docs`: public architecture notes.
-
-## What Is Excluded
-
-- Private review tools.
-- Music-generation integrations and account-specific routing.
-- Real inventory data, Excel files, processed internal Markdown files, generated DOCX/ZIP/PDF outputs.
-- Open WebUI runtime database, local users, passwords, tokens, and deployment secrets.
-- Customer-specific document templates.
-
-## Architecture
+## Overview
 
 ```text
-Open WebUI
-  -> document_generation_tools  -> document-service:8001
-  -> document_search            -> parser-service:8002
-  -> markdown_pdf_tools         -> markdown-pdf-service:8003
-  -> web_tools                  -> web-service:8004
+LAN User -> Open WebUI (:3000) -> vLLM Model API
+                              -> Tool Calls on the same host
+                                 -> Python ?뚯꽌/寃???꾧뎄
+                                    -> http://127.0.0.1:8002 Python Search/Parser
+                                 -> ?듯빀 臾몄꽌 ?쒖옉湲?                                    -> http://127.0.0.1:8001 Rust ?덉쓽臾??ш퀬 API
+                                    -> http://127.0.0.1:8003 Markdown PDF/Word/Excel Renderer
+                                 -> ???섏씠吏 媛?몄삤湲??꾧뎄
+                                    -> http://127.0.0.1:8004 Web Fetch
 ```
 
-Each tool server exposes an OpenAPI schema and is intended to be registered in Open WebUI as an OpenAPI tool server.
+媛쒕컻 ?쒖? ?ㅽ뻾? `docker-compose.host.yml` ?ㅻ쾭?덉씠瑜??④퍡 ?ъ슜?⑸땲?? ?곕씪??Open WebUI媛 ?깅줉???몄텧?섎뒗 ?꾧뎄 URL? 而⑦뀒?대꼫 ?쒕퉬?ㅻ챸(`document-service`, `parser-service`)???꾨땲???ㅽ뻾 湲곌린 湲곗? `127.0.0.1`?낅땲?? 湲곕낯 `docker-compose.yml`留??⑤룆 ?ㅽ뻾???뚮쭔 Docker bridge ?ㅽ듃?뚰겕???쒕퉬?ㅻ챸???ъ슜?????덉뒿?덈떎.
 
-## Local Configuration
+援ъ꽦 ?붿냼:
 
-Copy `.env.example` to `.env` and set your own values.
+- `open-webui`: ?ъ슜??UI, ???쒕쾭 ?곌껐 ?ㅼ젙, ?ㅽ뻾 ?섍꼍 蹂??- `python-service`: Python ?뚯꽌/寃???꾧뎄. RAW 臾몄꽌 Markdown 蹂?? ?덇굅??臾몄꽌 寃?? 臾몄꽌 ?꾨뱶 蹂댁“ API
+- `rust-service`: ?듯빀 臾몄꽌 ?쒖옉湲?吏꾩엯?? 援щℓ ?덉쓽臾??묒꽦, ?ш퀬 議고쉶, 援щℓ/?ш퀬 蹂닿퀬???대낫?닿린, ?뚮뜑???꾨줉??API
+- `markdown-pdf-service`: ?듯빀 臾몄꽌 ?쒖옉湲??대? ?뚮뜑?? Markdown 蹂닿퀬?쒕? PDF/Word/Excel ?뚯씪濡??뚮뜑留곹븯??API
+- `web-service`: ?몃? ???섏씠吏 蹂몃Ц 媛?몄삤湲??꾧뎄. ?ъ슜?먭? ?쒓났??URL??諛쏆븘 蹂몃Ц??Markdown?쇰줈 異붿텧 (寃??湲곕뒫? ?쒓났?섏? ?딆쓬)
+- `scripts`: 濡쒖뺄 ?ㅽ뻾, Docker ?ㅽ뻾, Open WebUI ?숆린???ㅽ겕由쏀듃
+- `docs`: ?댁쁺 硫붾え? ?곌껐 臾몄꽌
+
+## Open WebUI Tool Layout
+
+Open WebUI?먮뒗 ?ㅼ쓬 ???꾧뎄 ?쒕쾭瑜?湲곕낯?쇰줈 ?깅줉?⑸땲??
+
+- `Python ?뚯꽌/寃???꾧뎄` (`document_search`): ?대? 臾몄꽌, ?낅Т蹂닿퀬 ?먮Ц, ?섎━ ?대젰, ?좎쭨蹂??묒뾽 湲곕줉, 湲곗〈 洹쇨굅 寃???꾩슜?낅땲?? PDF ?앹꽦?대굹 援щℓ ?덉쓽臾??묒꽦?먮뒗 ?ъ슜?섏? ?딆뒿?덈떎.
+- `?듯빀 臾몄꽌 ?쒖옉湲? (`document_generation_tools`): Rust ?덉쓽臾??묒꽦湲곗? Markdown ?뚮뜑?щ? ?섎굹???꾧뎄濡?臾띠뒿?덈떎. ?ш퀬/?덈ぉ 議고쉶, 援щℓ ?덉쓽??DOCX/ZIP ?앹꽦, ?ш퀬 蹂닿퀬???뚯씪 ?앹꽦, Markdown PDF ?앹꽦, 蹂닿퀬??梨꾪똿 湲곕줉 Word/Excel ?대낫?닿린? ?ㅼ슫濡쒕뱶 留곹겕 ?앹꽦??泥섎━?⑸땲??
+
+## Key APIs
+
+- `POST /document/create`
+- `POST /document/fill`
+- `POST /document/export`
+- `GET /document/legacy/shortages`
+- `GET /document/legacy/item-context`
+- `POST /document/legacy/item-export`
+- `POST /document/legacy/item-approve`
+- `POST /document/legacy/run`
+- `POST /parser/to-md`
+- `POST /document/fill-fields`
+- `POST /search/query`
+- `POST /render/markdown-pdf`
+- `POST /render/chat-docx`
+- `POST /render/chat-xlsx`
+- `POST /web/fetch`
+
+Open WebUI?먯꽌??`?듯빀 臾몄꽌 ?쒖옉湲?(`document_generation_tools`)媛 援щℓ ?덉쓽?? ?ш퀬 議고쉶, 蹂닿퀬???뚯씪 ?앹꽦, Markdown PDF, Word, Excel ?대낫?닿린瑜??⑥씪 ?꾧뎄 ?쒕쾭濡??몄텧?⑸땲?? `Python ?뚯꽌/寃???꾧뎄`(`document_search`)???대? 臾몄꽌 寃?됯낵 洹쇨굅 議고쉶 ?꾩슜?쇰줈 ?ъ슜?⑸땲??
+
+## Legacy Stock Snapshot Rules
+
+Rust ?덇굅??臾몄꽌 ?묒꽦湲곕뒗 `rust-service/DB/output/stock_in_out_monthly.json` ?ㅻ깄?룹쓣 湲곗??쇰줈 ?숈옉?⑸땲??
+
+- ?먯쿇 Excel(`?낃퀬/?ш퀬/異쒓퀬`)? 諛곗튂 ??JSON ?ㅻ깄???앹꽦?먮쭔 ?ъ슜?⑸땲??
+- 臾몄꽌 `create/fill/export`? ?덈ぉ 而⑦뀓?ㅽ듃 議고쉶???먯쿇 Excel??吏곸젒 ?꾩옱 議고쉶 湲곗??쇰줈 ?ъ슜?섏? ?딆뒿?덈떎.
+- `?꾩옱怨????ш퀬 ?뚯씪 ?먭컪(`current_stock_before`)留??ъ슜?⑸땲??
+- `movement_net_qty`? `current_stock_updated`???대룞 ?대젰/異붿젙 ?붾웾??蹂댁“ 媛믪쑝濡??좎??섎ŉ, ?ㅼ젣 ?꾩옱怨??쒖떆媛믪쑝濡??곗? ?딆뒿?덈떎.
+- ?ш퀬 ?됱씠 ?녿뒗 ?덈ぉ? `inventory_confirmed=false`? `inventory_match_status`濡?遺꾨━?섏뼱 `?ш퀬 誘명솗???쇰줈 痍④툒?⑸땲??
+
+遺議깆옱怨?議고쉶 ?묐떟 湲곗?:
+
+- ?뺤씤??遺議??덈ぉ? `?꾩옱怨?, `?꾩닔?ш퀬`, `遺議깆닔??shortage_quantity)` 湲곗??쇰줈 ?뺣젹/?ㅻ챸?⑸땲??
+- `shortage_gap`???대? 怨꾩궛 ?꾨뱶濡??④린?? ?ъ슜???묐떟? `?꾩옱怨?X媛? ?꾩닔?ш퀬 Y媛쒕줈 Z媛?遺議? ?뺤떇?쇰줈 ?ㅻ챸?⑸땲??
+- `/document/legacy/shortages` ?묐떟?먮뒗 Open WebUI媛 洹몃?濡??ъ슜?????덈뒗 `markdown_table`? `unverified_markdown_table`媛 ?ы븿?⑸땲??
+
+諛곗튂 ?ъ깮??
 
 ```bash
-cp .env.example .env
+curl -X POST http://127.0.0.1:8001/document/legacy/run \
+  -H 'Content-Type: application/json' \
+  -d '{"force": true}'
+```
+
+## Local Run
+
+Rust service:
+
+```bash
+cd rust-service
+DOCUMENT_SERVICE_HOST=0.0.0.0 DOCUMENT_SERVICE_PORT=8001 cargo run
+```
+
+?뚯뒪??
+
+```bash
+PATH='/home/elise/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin':$PATH \
+cargo test --manifest-path Cargo.toml
+```
+
+Python service:
+
+```bash
+cd python-service
+python -m venv .venv
+. .venv/bin/activate
+pip install -e .
+PARSER_SERVICE_HOST=0.0.0.0 PARSER_SERVICE_PORT=8002 uvicorn app.main:app --host 0.0.0.0 --port 8002
+```
+
+Open WebUI:
+
+```bash
+bash scripts/start_openwebui_with_vllm.sh
+```
+
+Creator services:
+
+```bash
+bash scripts/start_creator_services.sh
+```
+
+Parser service:
+
+https://github.com/H4RUming/legacy-md-indexer 
+
+```bash
+bash scripts/start_parser_service.sh
+```
+
+Markdown PDF service:
+
+```bash
+bash scripts/start_markdown_pdf_service.sh
+```
+
+Web service:
+
+```bash
+bash scripts/start_web_service.sh
+```
+
+## Docker Compose
+
+沅뚯옣 媛쒕컻 ?ㅽ뻾:
+
+```bash
+cd /home/elise/Desktop/2026\ Dev/Port-Project
+bash scripts/start_openwebui_with_vllm.sh
+```
+
+援ъ꽦 ?붿빟:
+
+- `scripts/start_openwebui_with_vllm.sh`??Open WebUI ?대?吏瑜?鍮뚮뱶?섍퀬, Rust/Python/Markdown PDF ?쒕퉬???대?吏瑜?濡쒖뺄?먯꽌 鍮뚮뱶????`docker-compose.yml`怨?`docker-compose.host.yml`???④퍡 ?ъ슜??湲곕룞?⑸땲??
+- Docker Hub metadata/DNS 吏?곗쓣 以꾩씠湲??꾪빐 ?쒕퉬???대?吏??`python:3.11-slim`, `rust:1.95`, `debian:bookworm-slim`??濡쒖뺄 alias ?대?吏濡??쒓렇????`--pull=false`濡?鍮뚮뱶?⑸땲??
+- `docker-compose.host.yml`???④퍡 ?곕㈃ ?꾧뎄 ?쒕쾭?ㅼ? ?ㅽ뻾 湲곌린 湲곗? `127.0.0.1:8001`, `127.0.0.1:8002`, `127.0.0.1:8003`?쇰줈 Open WebUI???깅줉?⑸땲??
+- `vLLM` 紐⑤뜽 API???꾧뎄 ?쒕쾭媛 ?꾨땲硫?怨좎젙 二쇱냼 `http://host.docker.internal:8000/v1`濡??몄텧?⑸땲??
+- `document-service`??`./rust-service/DB`瑜?`/app/DB`濡?留덉슫?명븯怨?援щℓ ?덉쓽?? ?ш퀬 議고쉶, ?ㅼ슫濡쒕뱶 ?꾨줉?쒕? 泥섎━?⑸땲??
+- `parser-service`???덇굅??寃?됱슜 Python ?쒕퉬?ㅻ? ?④퍡 湲곕룞?⑸땲??
+- `markdown-pdf-service`??Markdown 蹂닿퀬??PDF, Word DOCX, Excel XLSX瑜??앹꽦?섍퀬 `./markdown-pdf-service/output`????ν빀?덈떎.
+- Chromium 湲곕컲 PDF ?뚮뜑留곸? 而⑦뀒?대꼫 sandbox 沅뚰븳 臾몄젣瑜??쇳븯湲??꾪빐 `CHROMIUM_DISABLE_SANDBOX=true`濡??ㅽ뻾?⑸땲??
+
+湲곕낯 compose留?吏곸젒 ?ъ슜???섎룄 ?덉뒿?덈떎.
+
+```bash
 docker compose up -d --build
 ```
 
-The public compose file does not include private Open WebUI bootstrap automation. Register the tool JSON files in `open-webui/` manually, or adapt them for your own Open WebUI instance.
+?ㅻ쭔 ?꾩옱 媛쒕컻 ?쒖?? host overlay瑜??ы븿???쒖옉 ?ㅽ겕由쏀듃?낅땲?? 吏곸젒 ?ㅽ뻾??寃쎌슦 Open WebUI ?고????숆린?붾? 蹂꾨룄濡??섑뻾?댁빞 ?⑸땲??
 
-## Security Notes
+```bash
+bash scripts/sync_openwebui_runtime.sh
+```
 
-- Do not commit real `.env` files.
-- Rotate `PORT_PROJECT_INTERNAL_TOKEN` per environment.
-- Mount real document corpora and templates at runtime only.
-- Review generated OpenAPI imports before giving tools to end users.
+湲곕낯 compose留??⑤룆?쇰줈 ?ъ슜?섎뒗 寃쎌슦?먮뒗 Open WebUI ?꾧뎄 URL??bridge ?ㅽ듃?뚰겕 湲곗??쇰줈 ?ㅼ떆 留욎떠???⑸땲??
+
+```bash
+RUST_TOOL_SERVER_URL=http://document-service:8001 \
+PARSER_TOOL_SERVER_URL=http://parser-service:8002 \
+bash scripts/sync_openwebui_runtime.sh
+```
+
+?쒕퉬???붾뱶?ъ씤??
+
+```text
+vLLM              -> http://host.docker.internal:8000/v1
+Open WebUI        -> http://127.0.0.1:3000 ?먮뒗 http://<?쒕쾭 LAN IP>:3000
+Rust creator API  -> http://127.0.0.1:8001
+Python parser API -> http://127.0.0.1:8002
+Markdown renderer -> http://127.0.0.1:8003
+Web fetch         -> http://127.0.0.1:8004
+```
+
+Open WebUI import ?덉떆:
+
+- `open-webui/openwebui-rust-tools.json`
+- `open-webui/openwebui-python-tools.json`
+- `open-webui/openwebui-markdown-pdf-tools.json`
+- `open-webui/openwebui-web-tools.json`
+
+## Repository Notes
+
+- ??⑸웾 ?몃뜳???곗텧臾쇨낵 濡쒖뺄 鍮뚮뱶 ?대뜑????μ냼?먯꽌 ?쒖쇅?⑸땲??
+- ?ㅼ젣 ?댁쁺??怨꾩젙 ?뺣낫? `.env` ?뚯씪? 而ㅻ컠?섏? ?딆뒿?덈떎.
+- `python-service/legacy-md-indexer-main` ?꾨옒 臾몄꽌 移댄깉濡쒓렇? 寃??肄붾뱶??蹂댁〈?섎릺, ?앹꽦??`processed_md` ?곗씠?곕뒗 ?쒖쇅?⑸땲??
+- `markdown-pdf-service/output`, `markdown-pdf-service/output.bak.*`, Python `*.egg-info` 媛숈? ?앹꽦 ?곗텧臾쇱? 而ㅻ컠?섏? ?딆뒿?덈떎.
+- GitHub PAT, Open WebUI 怨꾩젙 鍮꾨?踰덊샇, ?대? ?좏겙? README??而ㅻ컠 硫붿떆吏??湲곕줉?섏? ?딆뒿?덈떎.
+

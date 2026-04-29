@@ -9,8 +9,8 @@
     "key": "",
     "info": {
       "id": "markdown_pdf_tools",
-      "name": "Markdown Document Renderer",
-      "description": "Renders Markdown reports and chat transcripts to PDF, Word DOCX, or Excel XLSX files."
+      "name": "PDF/Word/Excel 문서 렌더러",
+      "description": "모델이 작성한 Markdown 기반 범용 보고서, 수리 완료 보고서, 정비 계획, 회의록, 업무보고 요약을 PDF, Word DOCX, Excel XLSX 파일로 렌더링하고 다운로드 링크를 반환합니다. 사용자가 명시한 파일 형식을 우선합니다. 구매 품의서 자체 생성에는 사용하지 않습니다."
     },
     "config": {
       "enable": true,

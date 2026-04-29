@@ -1,0 +1,10 @@
+docling>=2.0.0
+docling-core>=1.0.0
+easyocr
+python-dotenv
+tqdm
+pathlib
+pandas
+gradio
+rank_bm25
+kiwipiepy

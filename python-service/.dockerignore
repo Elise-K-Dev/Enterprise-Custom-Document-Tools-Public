@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+app/__pycache__/
+.pytest_cache/
+*.pyc
+
+legacy-md-indexer-main/.agents/
+legacy-md-indexer-main/__pycache__/
+legacy-md-indexer-main/processed_md/
+legacy-md-indexer-main/file_catalog.json
+legacy-md-indexer-main/users.json
+legacy-md-indexer-main/setting.conf

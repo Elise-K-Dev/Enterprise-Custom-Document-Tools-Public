@@ -1,0 +1,10 @@
+target/
+.git/
+
+DB/logs/
+DB/output/20*/
+DB/output/approved*/
+DB/output/packages*/
+DB/output/**/*.docx
+DB/output/**/*.zip
+DB/output/*.backup_*.json

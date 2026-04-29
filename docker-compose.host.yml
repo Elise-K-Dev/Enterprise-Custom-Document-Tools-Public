@@ -1,0 +1,31 @@
+services:
+  open-webui:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+    environment:
+      PORT: 3000
+    healthcheck:
+      test: ["CMD", "curl", "--silent", "--fail", "http://127.0.0.1:3000/health"]
+
+  document-service:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+    environment:
+      MARKDOWN_PDF_INTERNAL_BASE_URL: http://127.0.0.1:8003
+
+  parser-service:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+
+  markdown-pdf-service:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+
+  web-service:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []

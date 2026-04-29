@@ -1,40 +1,36 @@
-# Environment and secrets
+target/
+__pycache__/
+.pytest_cache/
+.venv/
+dist/
+build/
+*.pyc
+.openwebui-build/
+.DS_Store
 .env
 .env.*
 !.env.example
-*.pem
-*.key
-*.p12
-*.pfx
+*.log
 
-# Runtime data
-runtime/**
-!runtime/.gitkeep
-**/DB/**
-**/processed_md/**
-**/output/**
-**/outputs/**
-**/*.db
-**/*.sqlite
+open-webui/.env.openwebui
+open-webui/data/
 
-# Generated documents and customer files
-**/*.docx
-**/*.xlsx
-**/*.xls
-**/*.zip
-**/*.pdf
+python-service/.venv/
+python-service/app/__pycache__/
+python-service/legacy-md-indexer-main/processed_md/
+python-service/legacy-md-indexer-main/users.json
+python-service/legacy-md-indexer-main/setting.conf
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-*.egg-info/
-.pytest_cache/
-
-# Rust
 rust-service/target/
+rust-service/DB/logs/
+rust-service/DB/output/
 
-# Local editor
-.vscode/
-.idea/
-.DS_Store
+markdown-pdf-service/output/
+markdown-pdf-service/output.bak.*/
+python-service/*.egg-info/
+
+web-service/.venv/
+web-service/app/__pycache__/
+web-service/*.egg-info/
+.ms-playwright/
+.claude/

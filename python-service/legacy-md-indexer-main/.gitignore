@@ -1,0 +1,8 @@
+/.venv
+/processed_md
+*.json
+/__pycache__
+/.gradio
+*.log
+/files
+SYSTEM_ANALYSIS.md

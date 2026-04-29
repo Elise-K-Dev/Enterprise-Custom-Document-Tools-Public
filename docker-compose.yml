@@ -1,9 +1,41 @@
 services:
+  open-webui:
+    image: ${OPEN_WEBUI_IMAGE:-open-webui-vllm-local}
+    env_file:
+      - ./open-webui/.env.openwebui
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      document-service:
+        condition: service_started
+      parser-service:
+        condition: service_healthy
+      markdown-pdf-service:
+        condition: service_healthy
+      web-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--silent", "--fail", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - port-project
+
   document-service:
-    image: enterprise-document-service
+    image: port-project-document-service
     build:
       context: ./rust-service
       dockerfile: Dockerfile
+      network: host
+      args:
+        RUST_BASE_IMAGE: port-project-base-rust:1.95
+        DEBIAN_BASE_IMAGE: port-project-base-debian:bookworm-slim
     environment:
       DOCUMENT_SERVICE_HOST: 0.0.0.0
       DOCUMENT_SERVICE_PORT: 8001
@@ -16,16 +48,20 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ./runtime/document-db:/app/DB
-      - ./rust-service/templates:/app/templates:ro
+      - ./rust-service/DB:/app/DB
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
-      - enterprise-tools
+      - port-project
 
   parser-service:
-    image: enterprise-parser-service
+    image: port-project-parser-service
     build:
       context: ./python-service
       dockerfile: Dockerfile
+      network: host
+      args:
+        PYTHON_BASE_IMAGE: port-project-base-python:3.11-slim
     environment:
       PARSER_SERVICE_HOST: 0.0.0.0
       PARSER_SERVICE_PORT: 8002
@@ -41,20 +77,29 @@ services:
     ports:
       - "8002:8002"
     volumes:
-      - ./runtime/parser-output:/app/output
-      - ./runtime/processed-md:/app/legacy-md-indexer-main/processed_md:ro
-      - ./runtime/file_catalog.json:/app/legacy-md-indexer-main/file_catalog.json:ro
-      - ./runtime/users.json:/app/legacy-md-indexer-main/users.json:ro
+      - ./python-service/output:/app/output
+      - ./python-service/legacy-md-indexer-main/processed_md:/app/legacy-md-indexer-main/processed_md:ro
+      - ./python-service/legacy-md-indexer-main/file_catalog.json:/app/legacy-md-indexer-main/file_catalog.json:ro
+      - ./python-service/legacy-md-indexer-main/users.json:/app/legacy-md-indexer-main/users.json:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
-      - enterprise-tools
+      - port-project
 
   markdown-pdf-service:
-    image: enterprise-markdown-pdf-service
+    image: port-project-markdown-pdf-service
     build:
       context: ./markdown-pdf-service
       dockerfile: Dockerfile
+      network: host
+      args:
+        PYTHON_BASE_IMAGE: port-project-base-python:3.11-slim
     environment:
       MARKDOWN_PDF_SERVICE_HOST: 0.0.0.0
       MARKDOWN_PDF_SERVICE_PORT: 8003
@@ -65,27 +110,49 @@ services:
       CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
       CHROMIUM_DISABLE_SANDBOX: "true"
     ports:
-      - "8003:8003"
+      - "${MARKDOWN_PDF_SERVICE_PORT:-8003}:8003"
     volumes:
-      - ./runtime/markdown-output:/app/output
+      - ./markdown-pdf-service/output:/app/output
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
-      - enterprise-tools
+      - port-project
 
   web-service:
-    image: enterprise-web-service
+    image: port-project-web-service
     build:
       context: ./web-service
       dockerfile: Dockerfile
+      network: host
+      args:
+        PYTHON_BASE_IMAGE: port-project-base-python:3.11-slim
     environment:
       WEB_SERVICE_HOST: 0.0.0.0
       WEB_SERVICE_PORT: 8004
       WEB_SERVICE_PUBLIC_BASE_URL: ${WEB_SERVICE_PUBLIC_BASE_URL:-http://127.0.0.1:8004}
       PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
     ports:
-      - "8004:8004"
+      - "${WEB_SERVICE_PORT:-8004}:8004"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
-      - enterprise-tools
+      - port-project
 
 networks:
-  enterprise-tools:
-    name: enterprise-tools
+  port-project:
+    name: port-project
+
+volumes:
+  open-webui-data:

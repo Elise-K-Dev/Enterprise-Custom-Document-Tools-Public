@@ -1,10 +1,22 @@
-[project]
-name = "enterprise-parser-service-public"
-version = "0.1.0"
-description = "Sanitized parser/search tool server stub"
-requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn[standard]", "pydantic"]
-
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "document-parser-service"
+version = "0.1.0"
+description = "Parser service for converting raw document content into markdown"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111,<1.0",
+  "uvicorn[standard]>=0.30,<1.0",
+  "pydantic>=2.7,<3.0",
+  "requests>=2.32,<3.0",
+  "rank_bm25>=0.2.2,<1.0",
+  "kiwipiepy>=0.20,<1.0",
+  "markdown-it-py>=3.0,<4.0",
+  "playwright>=1.44,<2.0"
+]
+
+[tool.setuptools]
+packages = ["app"]

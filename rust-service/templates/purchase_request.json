@@ -1,0 +1,6 @@
+{
+  "template_id": "purchase_request",
+  "display_name": "구매 품의서",
+  "required_fields": ["품명", "수량", "납품업체"],
+  "description": "구매 요청 문서용 MVP 템플릿"
+}

@@ -9,8 +9,8 @@
     "key": "",
     "info": {
       "id": "document_generation_tools",
-      "name": "Document Generation Tools",
-      "description": "Creates, fills, exports, and packages structured business documents through the document service."
+      "name": "통합 문서 제작기",
+      "description": "통합 문서 제작기입니다. Rust 품의문 작성기와 Markdown 렌더러를 묶어 구매 품의서 DOCX/ZIP 생성, 재고/품목 조회, 재고 보고서 파일 생성, Markdown 보고서 PDF 렌더링, 보고서/채팅 기록 Word/Excel 내보내기와 다운로드 링크 생성을 처리합니다. 사용자가 명시한 파일 형식을 우선합니다."
     },
     "config": {
       "enable": true,
