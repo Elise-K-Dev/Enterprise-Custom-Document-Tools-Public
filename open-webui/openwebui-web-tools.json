@@ -1,0 +1,27 @@
+[
+  {
+    "type": "openapi",
+    "url": "http://web-service:8004",
+    "spec_type": "url",
+    "path": "/openapi.json",
+    "auth_type": "none",
+    "headers": null,
+    "key": "",
+    "info": {
+      "id": "web_tools",
+      "name": "Web Page Fetcher",
+      "description": "Fetches a user-provided URL and converts the page body to Markdown. This is not a web search tool."
+    },
+    "config": {
+      "enable": true,
+      "function_name_filter_list": "fetch_web_page",
+      "access_grants": [
+        {
+          "principal_type": "user",
+          "principal_id": "*",
+          "permission": "read"
+        }
+      ]
+    }
+  }
+]
