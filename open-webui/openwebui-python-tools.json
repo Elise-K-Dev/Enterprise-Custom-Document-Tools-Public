@@ -1,0 +1,27 @@
+[
+  {
+    "type": "openapi",
+    "url": "http://parser-service:8002",
+    "spec_type": "url",
+    "path": "/openapi.json",
+    "auth_type": "none",
+    "headers": null,
+    "key": "",
+    "info": {
+      "id": "document_search",
+      "name": "Document Search",
+      "description": "Searches preprocessed internal documents and returns relevant references with a grounded answer."
+    },
+    "config": {
+      "enable": true,
+      "function_name_filter_list": "search_documents_by_rank",
+      "access_grants": [
+        {
+          "principal_type": "user",
+          "principal_id": "*",
+          "permission": "read"
+        }
+      ]
+    }
+  }
+]
