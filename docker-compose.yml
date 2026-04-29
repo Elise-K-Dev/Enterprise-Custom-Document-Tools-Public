@@ -1,0 +1,91 @@
+services:
+  document-service:
+    image: enterprise-document-service
+    build:
+      context: ./rust-service
+      dockerfile: Dockerfile
+    environment:
+      DOCUMENT_SERVICE_HOST: 0.0.0.0
+      DOCUMENT_SERVICE_PORT: 8001
+      DOCUMENT_SERVICE_PUBLIC_BASE_URL: ${DOCUMENT_SERVICE_PUBLIC_BASE_URL:-http://127.0.0.1:8001}
+      PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
+      PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS: ${PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS:-3600}
+      MARKDOWN_PDF_INTERNAL_BASE_URL: http://markdown-pdf-service:8003
+      PORT_PROJECT_TEMPLATE_DIR: /app/templates
+      PORT_PROJECT_LEGACY_WORKDIR: /app/DB
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./runtime/document-db:/app/DB
+      - ./rust-service/templates:/app/templates:ro
+    networks:
+      - enterprise-tools
+
+  parser-service:
+    image: enterprise-parser-service
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    environment:
+      PARSER_SERVICE_HOST: 0.0.0.0
+      PARSER_SERVICE_PORT: 8002
+      DOCUMENT_FILLER_API_URL: ${DOCUMENT_FILLER_API_URL:-http://host.docker.internal:8000/v1/chat/completions}
+      DOCUMENT_FILLER_MODEL_ID: ${DOCUMENT_FILLER_MODEL_ID:-your-model-id}
+      PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
+      PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS: ${PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS:-3600}
+      LEGACY_MD_INDEXER_DIR: /app/legacy-md-indexer-main
+      PARSER_PDF_OUTPUT_DIR: /app/output/pdf
+      PARSER_PDF_PUBLIC_BASE_URL: ${PARSER_PDF_PUBLIC_BASE_URL:-http://127.0.0.1:8002}
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
+      CHROMIUM_DISABLE_SANDBOX: "true"
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./runtime/parser-output:/app/output
+      - ./runtime/processed-md:/app/legacy-md-indexer-main/processed_md:ro
+      - ./runtime/file_catalog.json:/app/legacy-md-indexer-main/file_catalog.json:ro
+      - ./runtime/users.json:/app/legacy-md-indexer-main/users.json:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - enterprise-tools
+
+  markdown-pdf-service:
+    image: enterprise-markdown-pdf-service
+    build:
+      context: ./markdown-pdf-service
+      dockerfile: Dockerfile
+    environment:
+      MARKDOWN_PDF_SERVICE_HOST: 0.0.0.0
+      MARKDOWN_PDF_SERVICE_PORT: 8003
+      MARKDOWN_PDF_PUBLIC_BASE_URL: ${MARKDOWN_PDF_PUBLIC_BASE_URL:-http://127.0.0.1:8003}
+      MARKDOWN_PDF_OUTPUT_DIR: /app/output
+      PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
+      PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS: ${PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS:-3600}
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
+      CHROMIUM_DISABLE_SANDBOX: "true"
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./runtime/markdown-output:/app/output
+    networks:
+      - enterprise-tools
+
+  web-service:
+    image: enterprise-web-service
+    build:
+      context: ./web-service
+      dockerfile: Dockerfile
+    environment:
+      WEB_SERVICE_HOST: 0.0.0.0
+      WEB_SERVICE_PORT: 8004
+      WEB_SERVICE_PUBLIC_BASE_URL: ${WEB_SERVICE_PUBLIC_BASE_URL:-http://127.0.0.1:8004}
+      PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
+    ports:
+      - "8004:8004"
+    networks:
+      - enterprise-tools
+
+networks:
+  enterprise-tools:
+    name: enterprise-tools
