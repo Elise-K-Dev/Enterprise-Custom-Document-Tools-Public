@@ -1,0 +1,27 @@
+[
+  {
+    "type": "openapi",
+    "url": "http://markdown-pdf-service:8003",
+    "spec_type": "url",
+    "path": "/openapi.json",
+    "auth_type": "none",
+    "headers": null,
+    "key": "",
+    "info": {
+      "id": "markdown_pdf_tools",
+      "name": "Markdown Document Renderer",
+      "description": "Renders Markdown reports and chat transcripts to PDF, Word DOCX, or Excel XLSX files."
+    },
+    "config": {
+      "enable": true,
+      "function_name_filter_list": "render_markdown_pdf,render_chat_docx,render_chat_xlsx",
+      "access_grants": [
+        {
+          "principal_type": "user",
+          "principal_id": "*",
+          "permission": "read"
+        }
+      ]
+    }
+  }
+]
