@@ -1,0 +1,27 @@
+[
+  {
+    "type": "openapi",
+    "url": "http://document-service:8001",
+    "spec_type": "url",
+    "path": "/openapi.json",
+    "auth_type": "none",
+    "headers": null,
+    "key": "",
+    "info": {
+      "id": "document_generation_tools",
+      "name": "Document Generation Tools",
+      "description": "Creates, fills, exports, and packages structured business documents through the document service."
+    },
+    "config": {
+      "enable": true,
+      "function_name_filter_list": "create_document,fill_document,export_document,list_shortage_items,list_inventory_items,export_inventory_report,get_item_document_context,export_single_item_document,approve_and_generate_item_document,generate_purchase_document_package,render_markdown_pdf,render_chat_docx,render_chat_xlsx",
+      "access_grants": [
+        {
+          "principal_type": "user",
+          "principal_id": "*",
+          "permission": "read"
+        }
+      ]
+    }
+  }
+]
