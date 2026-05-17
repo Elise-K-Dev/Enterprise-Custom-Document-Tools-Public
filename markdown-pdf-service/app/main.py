@@ -35,15 +35,51 @@ app.add_middleware(
 )
 
 
+import asyncio
+import logging
+
+from app.identity import (
+    ResolvedUser,
+    require_admin_role,
+    require_internal_request,
+    resolve_user,
+)
+from app.grants import GrantStore, RetentionPolicy, run_cleanup_worker
+
+
 OUTPUT_DIR = Path(os.getenv("MARKDOWN_PDF_OUTPUT_DIR", "/app/output"))
-PUBLIC_BASE_URL = os.getenv("MARKDOWN_PDF_PUBLIC_BASE_URL", "http://127.0.0.1:8003").rstrip("/")
+PUBLIC_BASE_URL = (
+    os.getenv("MARKDOWN_PDF_PUBLIC_BASE_URL")
+    or os.getenv("PORT_PROJECT_PUBLIC_BASE_URL")
+    or "http://192.168.100.202"
+).rstrip("/")
 CHROMIUM_EXECUTABLE_PATH = os.getenv("CHROMIUM_EXECUTABLE_PATH", "/usr/bin/chromium")
-INTERNAL_TOKEN_HEADER = "x-port-project-internal-token"
-OPEN_WEBUI_USER_EMAIL_HEADER = "x-openwebui-user-email"
-OPEN_WEBUI_USER_ID_HEADER = "x-openwebui-user-id"
-OPEN_WEBUI_USER_NAME_HEADER = "x-openwebui-user-name"
-DOWNLOAD_TOKEN_TTL_SECONDS = int(os.getenv("PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS", "3600"))
-_DOWNLOAD_GRANTS: dict[str, dict[str, Any]] = {}
+RETENTION_CONFIG_PATH = Path(
+    os.getenv("MARKDOWN_PDF_RETENTION_CONFIG", "/app/config/retention.yml")
+)
+GRANT_DB_PATH = Path(os.getenv("MARKDOWN_PDF_GRANT_DB", str(OUTPUT_DIR / ".grants.db")))
+
+logging.basicConfig(
+    level=os.getenv("MARKDOWN_PDF_LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+log = logging.getLogger("markdown_pdf")
+
+_GRANT_STORE: GrantStore | None = None
+_CLEANUP_STOP: asyncio.Event | None = None
+_CLEANUP_TASK: asyncio.Task | None = None
+
+
+def grant_store() -> GrantStore:
+    global _GRANT_STORE
+    if _GRANT_STORE is None:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        _GRANT_STORE = GrantStore(
+            db_path=GRANT_DB_PATH,
+            output_dir=OUTPUT_DIR,
+            config_path=RETENTION_CONFIG_PATH,
+        )
+    return _GRANT_STORE
 
 REPORT_CSS = """
 @page {
@@ -203,71 +239,46 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-def configured_internal_token() -> str:
-    token = os.getenv("PORT_PROJECT_INTERNAL_TOKEN", "").strip()
-    if not token:
-        raise HTTPException(status_code=500, detail="PORT_PROJECT_INTERNAL_TOKEN is not configured")
-    return token
-
-
-def require_internal_request(raw_request: Request) -> None:
-    expected = configured_internal_token()
-    supplied = (raw_request.headers.get(INTERNAL_TOKEN_HEADER) or "").strip()
-    if not secrets.compare_digest(supplied, expected):
-        raise HTTPException(status_code=403, detail="invalid internal tool token")
-
-
-def require_registered_tool_user(raw_request: Request) -> dict[str, str]:
-    require_internal_request(raw_request)
-    email = (raw_request.headers.get(OPEN_WEBUI_USER_EMAIL_HEADER) or "").strip().lower()
-    user_id = (raw_request.headers.get(OPEN_WEBUI_USER_ID_HEADER) or "").strip()
-    name = (raw_request.headers.get(OPEN_WEBUI_USER_NAME_HEADER) or "").strip()
-    if not email or not user_id:
-        raise HTTPException(status_code=401, detail="registered Open WebUI account is required")
-    return {"email": email, "user_id": user_id, "name": name or email}
-
-
-def apply_registered_user_defaults(req: Any, user: dict[str, str]) -> None:
+def apply_registered_user_defaults(req: Any, user: ResolvedUser) -> None:
     if not getattr(req, "generated_for", None):
-        req.generated_for = user["name"]
+        req.generated_for = user.name
     if not getattr(req, "account_name", None):
-        req.account_name = user["name"]
+        req.account_name = user.name
     if not getattr(req, "account_email", None):
-        req.account_email = user["email"]
+        req.account_email = user.email
 
 
-def purge_expired_download_grants(now: float | None = None) -> None:
-    current = now or time.time()
-    expired = [
-        token
-        for token, grant in _DOWNLOAD_GRANTS.items()
-        if float(grant.get("expires_at", 0)) <= current
-    ]
-    for token in expired:
-        _DOWNLOAD_GRANTS.pop(token, None)
+def issue_grant_for(path: str, user: ResolvedUser) -> str:
+    record = grant_store().issue(
+        path=path,
+        user_id=user.user_id,
+        email=user.email,
+        rank=user.rank,
+    )
+    return record["token"]
 
 
-def issue_download_token(path: str, user: dict[str, str]) -> str:
-    purge_expired_download_grants()
-    token = secrets.token_urlsafe(32)
-    _DOWNLOAD_GRANTS[token] = {
-        "path": path,
-        "user_id": user["user_id"],
-        "email": user["email"],
-        "expires_at": time.time() + DOWNLOAD_TOKEN_TTL_SECONDS,
-    }
-    return token
+@app.on_event("startup")
+async def _start_cleanup_worker() -> None:
+    global _CLEANUP_STOP, _CLEANUP_TASK
+    store = grant_store()
+    _CLEANUP_STOP = asyncio.Event()
+    _CLEANUP_TASK = asyncio.create_task(run_cleanup_worker(store, _CLEANUP_STOP))
+    log.info(
+        "grant store initialized: db=%s output=%s config=%s",
+        GRANT_DB_PATH, OUTPUT_DIR, RETENTION_CONFIG_PATH,
+    )
 
 
-def validate_download_token(path: str, token: str | None, raw_request: Request) -> None:
-    if token:
-        purge_expired_download_grants()
-        grant = _DOWNLOAD_GRANTS.get(token)
-        if grant and grant.get("path") == path:
-            return
-        raise HTTPException(status_code=403, detail="invalid download token")
-
-    require_registered_tool_user(raw_request)
+@app.on_event("shutdown")
+async def _stop_cleanup_worker() -> None:
+    if _CLEANUP_STOP is not None:
+        _CLEANUP_STOP.set()
+    if _CLEANUP_TASK is not None:
+        try:
+            await asyncio.wait_for(_CLEANUP_TASK, timeout=5.0)
+        except Exception:
+            pass
 
 
 @app.get("/openapi.json")
@@ -480,7 +491,7 @@ def openapi_spec() -> dict[str, Any]:
 
 @app.post("/render/markdown-pdf", response_model=RenderMarkdownPdfResponse)
 async def render_markdown_pdf(req: RenderMarkdownPdfRequest, raw_request: Request) -> RenderMarkdownPdfResponse:
-    user = require_registered_tool_user(raw_request)
+    user = resolve_user(raw_request)
     apply_registered_user_defaults(req, user)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     file_name = sanitize_pdf_filename(req.file_name or req.title)
@@ -500,7 +511,7 @@ async def render_markdown_pdf(req: RenderMarkdownPdfRequest, raw_request: Reques
         landscape=req.orientation == "landscape",
     )
 
-    token = issue_download_token(relative_path.as_posix(), user)
+    token = issue_grant_for(relative_path.as_posix(), user)
     download_path = f"/download?path={quote(relative_path.as_posix())}&token={quote(token)}"
     download_url = f"{PUBLIC_BASE_URL}{download_path}"
     return RenderMarkdownPdfResponse(
@@ -515,7 +526,7 @@ async def render_markdown_pdf(req: RenderMarkdownPdfRequest, raw_request: Reques
 
 @app.post("/render/chat-docx", response_model=RenderMarkdownPdfResponse)
 async def render_chat_docx(req: RenderChatDocumentRequest, raw_request: Request) -> RenderMarkdownPdfResponse:
-    user = require_registered_tool_user(raw_request)
+    user = resolve_user(raw_request)
     apply_registered_user_defaults(req, user)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     file_name = sanitize_document_filename(req.file_name or req.title, ".docx")
@@ -525,7 +536,7 @@ async def render_chat_docx(req: RenderChatDocumentRequest, raw_request: Request)
 
     render_chat_docx_file(req, output_path)
 
-    token = issue_download_token(relative_path.as_posix(), user)
+    token = issue_grant_for(relative_path.as_posix(), user)
     download_path = f"/download?path={quote(relative_path.as_posix())}&token={quote(token)}"
     download_url = f"{PUBLIC_BASE_URL}{download_path}"
     return RenderMarkdownPdfResponse(
@@ -540,7 +551,7 @@ async def render_chat_docx(req: RenderChatDocumentRequest, raw_request: Request)
 
 @app.post("/render/chat-xlsx", response_model=RenderMarkdownPdfResponse)
 async def render_chat_xlsx(req: RenderChatDocumentRequest, raw_request: Request) -> RenderMarkdownPdfResponse:
-    user = require_registered_tool_user(raw_request)
+    user = resolve_user(raw_request)
     apply_registered_user_defaults(req, user)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     file_name = sanitize_document_filename(req.file_name or req.title, ".xlsx")
@@ -550,7 +561,7 @@ async def render_chat_xlsx(req: RenderChatDocumentRequest, raw_request: Request)
 
     render_chat_xlsx_file(req, output_path)
 
-    token = issue_download_token(relative_path.as_posix(), user)
+    token = issue_grant_for(relative_path.as_posix(), user)
     download_path = f"/download?path={quote(relative_path.as_posix())}&token={quote(token)}"
     download_url = f"{PUBLIC_BASE_URL}{download_path}"
     return RenderMarkdownPdfResponse(
@@ -569,7 +580,15 @@ def download(
     path: str = Query(..., description="OUTPUT_DIR 기준 상대 경로"),
     token: str | None = Query(default=None, description="등록 계정에 발급된 다운로드 토큰"),
 ) -> FileResponse:
-    validate_download_token(path, token, raw_request)
+    if not token:
+        # Token-less internal access for legacy/tool-to-tool calls.
+        resolve_user(raw_request)
+    else:
+        try:
+            grant_store().validate_and_consume(token, path)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     requested = OUTPUT_DIR / path
     try:
         canonical_output = OUTPUT_DIR.resolve()
@@ -585,6 +604,106 @@ def download(
         media_type=media_type_for_path(canonical_file),
         filename=canonical_file.name,
     )
+
+
+# --- admin endpoints --------------------------------------------------------
+# All require: internal token header AND hi_rank caller. Caddy already
+# locks down /admin/* externally; this is the in-service guard.
+
+def _require_admin(raw_request: Request) -> ResolvedUser:
+    # require_internal_request is already enforced inside resolve_user
+    user = resolve_user(raw_request)
+    require_admin_role(user)
+    return user
+
+
+@app.get("/admin/policy")
+def admin_get_policy(raw_request: Request) -> dict[str, Any]:
+    _require_admin(raw_request)
+    pol = grant_store().policy()
+    return {"policy": pol.to_dict(), "config_path": str(RETENTION_CONFIG_PATH)}
+
+
+@app.patch("/admin/policy")
+async def admin_patch_policy(raw_request: Request) -> dict[str, Any]:
+    _require_admin(raw_request)
+    body = await raw_request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+    store = grant_store()
+    applied: dict[str, Any] = {}
+    for key, value in body.items():
+        try:
+            store.set_policy_override(key, value)
+            applied[key] = value
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"applied": applied, "policy": store.policy().to_dict()}
+
+
+@app.get("/admin/grants")
+def admin_list_grants(
+    raw_request: Request,
+    status: str | None = Query(default=None),
+    user_id: str | None = Query(default=None),
+    limit: int = Query(default=200, le=1000),
+) -> dict[str, Any]:
+    _require_admin(raw_request)
+    return {"grants": grant_store().list_grants(status=status, user_id=user_id, limit=limit)}
+
+
+@app.get("/admin/grants/{token}")
+def admin_get_grant(token: str, raw_request: Request) -> dict[str, Any]:
+    _require_admin(raw_request)
+    row = grant_store().get(token)
+    if not row:
+        raise HTTPException(status_code=404, detail="grant not found")
+    return row
+
+
+@app.patch("/admin/grants/{token}")
+async def admin_patch_grant(token: str, raw_request: Request) -> dict[str, Any]:
+    _require_admin(raw_request)
+    body = await raw_request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+    store = grant_store()
+    try:
+        return store.update_grant(
+            token,
+            ttl_extend_seconds=body.get("ttl_extend_seconds"),
+            expires_at=body.get("expires_at"),
+            max_downloads=body.get("max_downloads"),
+            delete_on_download=body.get("delete_on_download"),
+            status=body.get("status"),
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="grant not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/admin/grants/{token}")
+def admin_delete_grant(
+    token: str,
+    raw_request: Request,
+    delete_file: bool = Query(default=True),
+) -> dict[str, Any]:
+    _require_admin(raw_request)
+    store = grant_store()
+    row = store.get(token)
+    if not row:
+        raise HTTPException(status_code=404, detail="grant not found")
+    store.mark_for_deletion(token)
+    if delete_file:
+        store._safe_unlink(OUTPUT_DIR / row["path"])
+    return {"revoked": token, "path": row["path"], "file_deleted": delete_file}
+
+
+@app.post("/admin/sweep")
+def admin_sweep(raw_request: Request) -> dict[str, int]:
+    _require_admin(raw_request)
+    return grant_store().sweep()
 
 
 def build_report_html(title: str, markdown: str, req: RenderMarkdownPdfRequest) -> str:

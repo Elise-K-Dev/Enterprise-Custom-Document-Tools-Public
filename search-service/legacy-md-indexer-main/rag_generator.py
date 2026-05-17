@@ -44,7 +44,9 @@ def _tokenize_text_worker(text: str) -> List[str]:
     return [t.form for t in tokens if not t.tag.startswith('J') and not t.tag.startswith('S')]
 
 
-def _normalize_doc_path(path: str) -> str:
+def _normalize_doc_path(path: str | None) -> str:
+    if not path:
+        return ""
     return str(path).replace("\\", "/").lstrip("/")
 
 
@@ -119,8 +121,8 @@ class RAGGenerator:
         except Exception as exc:
             logger.warning(f"BM25 토큰 캐시 저장 실패: {exc}")
 
-    def _catalog_meta(self, catalog: Dict | None, path: str) -> Dict:
-        if not catalog:
+    def _catalog_meta(self, catalog: Dict | None, path: str | None) -> Dict:
+        if not catalog or not path:
             return {}
         return catalog.get(path) or catalog.get(path.replace("/", "\\")) or {}
 

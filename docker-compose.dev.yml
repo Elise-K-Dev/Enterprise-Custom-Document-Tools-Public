@@ -1,0 +1,20 @@
+services:
+  search-service:
+    volumes:
+      - ./search-service/app:/app/app
+    command: ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8002 --reload --reload-dir app"]
+
+  markdown-pdf-service:
+    volumes:
+      - ./markdown-pdf-service/app:/app/app
+    command: ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8003 --reload --reload-dir app"]
+
+  web-service:
+    volumes:
+      - ./web-service/app:/app/app
+    command: ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8004 --reload --reload-dir app"]
+
+  document-service:
+    volumes:
+      - ./rust-service/target/release/document-service:/usr/local/bin/document-service:ro
+      - ./rust-service/templates:/app/templates:ro

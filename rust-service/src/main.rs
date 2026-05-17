@@ -71,6 +71,8 @@ struct RegisteredUser {
     id: String,
     email: String,
     name: String,
+    rank: Option<String>,
+    groups: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -382,6 +384,8 @@ const INTERNAL_TOKEN_HEADER: &str = "x-port-project-internal-token";
 const OPEN_WEBUI_USER_EMAIL_HEADER: &str = "x-openwebui-user-email";
 const OPEN_WEBUI_USER_ID_HEADER: &str = "x-openwebui-user-id";
 const OPEN_WEBUI_USER_NAME_HEADER: &str = "x-openwebui-user-name";
+const OPEN_WEBUI_USER_RANK_HEADER: &str = "x-openwebui-user-rank";
+const OPEN_WEBUI_USER_GROUPS_HEADER: &str = "x-openwebui-user-groups";
 const DEFAULT_DOWNLOAD_TOKEN_TTL_SECONDS: i64 = 3600;
 
 fn default_true() -> bool {
@@ -420,7 +424,7 @@ async fn openapi_spec() -> Json<serde_json::Value> {
         "info": {
             "title": "Document Generation Gateway",
             "version": "1.0.0",
-            "description": "구매 품의서, 재고 보고서, Markdown 기반 PDF 보고서, 보고서/채팅 기록 Word/Excel 내보내기를 8001 단일 문서 생성 도구로 처리하고 다운로드 정보를 반환하는 도구 서버"
+            "description": "Single document tool server on port 8001 that processes purchase requests, inventory reports, Markdown-based PDF reports, Word/Excel exports for reports and chat history, and returns download info."
         },
         "servers": [
             { "url": "http://document-service:8001" }
@@ -450,8 +454,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/create": {
                 "post": {
                     "operationId": "create_document",
-                    "summary": "구매 품의서 전용 대화형 문서 채우기 세션 시작",
-                    "description": "구매 품의서(purchase_request) 전용 도구다. template_id는 반드시 purchase_request만 사용한다. 수리 완료 보고서, 업무 보고서, 회의록, 일반 요약 보고서, repair_report 같은 템플릿은 이 도구로 만들지 말고 Markdown 본문을 작성한 뒤 render_markdown_pdf를 호출한다. 품명 또는 품번이 입력에 포함되면 전처리 완료된 stock_in_out_monthly.json 스냅샷을 기준으로 품명, 품번, 현재고, 교체이력 관련 필드를 자동 보강한다.",
+                    "summary": "Start interactive document filling session for purchase requests only",
+                    "description": "Tool exclusively for purchase requests (template_id must be purchase_request). Do not use for repair reports, work reports, meeting minutes, summaries, or repair_report templates; write Markdown body and call render_markdown_pdf instead. If item name or item code is in input, auto-enrich fields like item name, item code, current stock, and replacement history using the preprocessed stock_in_out_monthly.json snapshot.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -473,8 +477,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/fill": {
                 "post": {
                     "operationId": "fill_document",
-                    "summary": "구매 품의서 전용 대화형 문서 필드 추가 채움",
-                    "description": "purchase_request 구매 품의서 세션 전용 도구다. 수리 완료 보고서, 업무 보고서, 회의록, 일반 요약 보고서에는 사용하지 않는다. 이전 세션 상태와 현재 사용자 답변을 합쳐 필드를 갱신하고 다음으로 채울 칸을 반환한다. 사용자가 납품업체: 지정 협력사 처럼 말하면 해당 칸을 확정한다. 품명 또는 품번이 확인되면 전처리 완료된 stock_in_out_monthly.json 스냅샷을 기준으로 재고 및 이력 필드를 다시 보강한다.",
+                    "summary": "Add field values to purchase request document filling session",
+                    "description": "Tool exclusively for purchase request sessions. Do not use for repair reports, work reports, meeting minutes, or summaries. Merge previous session state with current user answer, update fields, and return next field to fill. If user says 'supplier: designated partner', confirm that field. If item name or code is confirmed, re-enrich stock and history fields using preprocessed stock_in_out_monthly.json snapshot.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -501,8 +505,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/export": {
                 "post": {
                     "operationId": "export_document",
-                    "summary": "구매 품의서 전용 채워진 필드로 문서 내보내기",
-                    "description": "purchase_request 구매 품의서 필드를 사용해 문서 파일 내용을 생성한다. 수리 완료 보고서, 업무 보고서, 회의록, 일반 요약 보고서에는 사용하지 않는다. docx 형식이면 Rust 레거시 DOCX 렌더러를 사용한다. 품명 또는 품번이 채워져 있으면 렌더 직전에 전처리 완료된 stock_in_out_monthly.json 스냅샷 기준으로 재고/이력 필드를 다시 보강한다.",
+                    "summary": "Export document using filled fields for purchase requests only",
+                    "description": "Generate document content using purchase request fields. Do not use for repair reports, work reports, meeting minutes, or summaries. Use Rust legacy DOCX renderer for docx format. If item name or code is filled, re-enrich stock/history fields using preprocessed stock_in_out_monthly.json snapshot just before rendering.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -529,7 +533,7 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                 "post": {
                     "operationId": "generate_purchase_document_package",
                     "summary": "Run the full purchase document batch and return a ZIP package for download",
-                    "description": "사용자가 구매 품의 문서 전체 작성, 일괄 생성, 전체 ZIP 다운로드를 요청하면 이 도구를 사용한다. 레거시 Rust 배치를 실행하고 생성된 DOCX 전체를 ZIP으로 묶은 뒤 다운로드 URL을 반환한다.",
+                    "description": "Use when user requests complete purchase request document writing, batch generation, and full ZIP download. Run legacy Rust batch, bundle all generated DOCX files into ZIP, and return download URL.",
                     "requestBody": {
                         "required": false,
                         "content": {
@@ -559,19 +563,19 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                             "download_path": { "type": "string" },
                                             "download_url": {
                                                 "type": "string",
-                                                "description": "사용자에게 그대로 안내할 ZIP 다운로드 URL"
+                                                "description": "ZIP download URL to provide directly to user"
                                             },
                                             "message": {
                                                 "type": "string",
-                                                "description": "사용자에게 바로 보여줄 짧은 완료 메시지"
+                                                "description": "Brief completion message to show directly to user"
                                             },
                                             "assistant_summary": {
                                                 "type": "string",
-                                                "description": "모델이 그대로 사용자에게 안내해도 되는 자연어 요약"
+                                                "description": "Natural language summary that model can relay directly to user"
                                             },
                                             "generated_files_preview": {
                                                 "type": "array",
-                                                "description": "생성된 파일 예시 일부",
+                                                "description": "Sample of generated files",
                                                 "items": { "type": "string" }
                                             },
                                             "batch_report_path": { "type": ["string", "null"] },
@@ -587,22 +591,22 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/legacy/shortages": {
                 "get": {
                     "operationId": "list_shortage_items",
-                    "summary": "현재 재고 부족 또는 0 이하인 품목 조회",
-                    "description": "사용자가 현재 재고가 없는 품목, 부족한 품목, 구매가 필요한 품목을 물으면 이 도구를 사용한다. 반드시 전처리 완료된 stock_in_out_monthly.json 스냅샷만 기준으로 답하고, 원천 엑셀 파일을 직접 현재 조회 근거로 설명하면 안 된다. 답변할 때 shortage_gap 같은 원시 필드명을 앞세우지 말고, 반드시 '현재고 X개, 필수재고 Y개로 Z개 부족' 형식의 자연어를 사용한다. 응답에 markdown_table 필드가 있으면 그 값을 우선 사용해 마크다운 표로 보여준다.",
+                    "summary": "Query items with current stock shortage or at/below zero",
+                    "description": "Use when user asks about items with no current stock, shortage items, or items needing purchase. Answer strictly using preprocessed stock_in_out_monthly.json snapshot; do not cite source Excel file. Use natural language format like 'X current stock, Y required stock, Z shortage quantity' instead of raw field names like shortage_gap. If response has markdown_table field, prioritize it for display.",
                     "parameters": [
                         {
                             "name": "query",
                             "in": "query",
                             "required": false,
                             "schema": { "type": "string" },
-                            "description": "품목명 또는 품번 필터"
+                            "description": "Item name or item code filter"
                         },
                         {
                             "name": "limit",
                             "in": "query",
                             "required": false,
                             "schema": { "type": "integer", "default": 20 },
-                            "description": "최대 반환 개수"
+                            "description": "Maximum items to return"
                         }
                     ],
                     "responses": {
@@ -615,15 +619,15 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/legacy/items": {
                 "get": {
                     "operationId": "list_inventory_items",
-                    "summary": "전체 품목 인덱스 및 재고/소모 기준 조회",
-                    "description": "사용자가 전체 품목 리스트, 재고가 충분한 품목, 재고 상태별 필터, 품번/품명 검색, 재고 매칭 상태, 부품 소모속도 빠른 순 조회를 요청하면 이 도구를 사용한다. 반드시 전처리 완료된 stock_in_out_monthly.json 스냅샷만 기준으로 답하고, 원천 엑셀 파일을 직접 현재 조회 근거로 설명하면 안 된다. 응답의 filter_options는 사용자가 다시 필터링할 수 있는 조건이며, markdown_table 필드가 있으면 그 값을 우선 사용해 마크다운 표로 보여준다.",
+                    "summary": "Query full item index with stock/consumption criteria",
+                    "description": "Use when user requests full item list, sufficient stock items, stock status filters, item code/name search, stock match status, or parts by consumption rate. Answer strictly using preprocessed stock_in_out_monthly.json snapshot; do not cite source Excel file. filter_options provides conditions for further filtering; if markdown_table exists, use it for display.",
                     "parameters": [
                         {
                             "name": "query",
                             "in": "query",
                             "required": false,
                             "schema": { "type": "string" },
-                            "description": "품목명 또는 품번 키워드"
+                            "description": "Item name or item code keyword"
                         },
                         {
                             "name": "status",
@@ -633,7 +637,7 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                 "type": "string",
                                 "enum": ["all", "shortage", "sufficient", "out_of_stock", "unverified", "confirmed"]
                             },
-                            "description": "재고 상태 필터. all은 전체, shortage는 부족/재고없음, sufficient는 재고 충분, out_of_stock은 현재고 0 이하, unverified는 재고 미확인, confirmed는 재고 확인 품목"
+                            "description": "Stock status filter: all=all, shortage=shortage/out of stock, sufficient=adequate stock, out_of_stock=current stock <= 0, unverified=unverified inventory, confirmed=confirmed inventory items"
                         },
                         {
                             "name": "match_status",
@@ -643,7 +647,7 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                 "type": "string",
                                 "enum": ["matched_all", "stock_inbound", "stock_outbound", "stock_only", "movement_only", "inbound_only", "outbound_only", "unclassified"]
                             },
-                            "description": "재고/입고/출고 매칭 상태 필터"
+                            "description": "Stock/inbound/outbound matching status filter"
                         },
                         {
                             "name": "sort",
@@ -654,14 +658,14 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                 "default": "priority",
                                 "enum": ["priority", "consumption", "net_decrease", "shortage", "stock", "name", "outbound"]
                             },
-                            "description": "정렬 기준. consumption은 최근 출고합계가 큰 순, net_decrease는 이동 순증감이 낮은 순, shortage는 부족수량 큰 순"
+                            "description": "Sort order: consumption=recent total outbound (largest first), net_decrease=net movement (lowest first), shortage=shortage quantity (largest first)"
                         },
                         {
                             "name": "limit",
                             "in": "query",
                             "required": false,
                             "schema": { "type": "integer", "default": 50 },
-                            "description": "최대 반환 개수"
+                            "description": "Maximum items to return"
                         }
                     ],
                     "responses": {
@@ -674,15 +678,15 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/legacy/items/report": {
                 "get": {
                     "operationId": "export_inventory_report",
-                    "summary": "전체 또는 필터된 품목 재고 현황 보고서 파일 생성",
-                    "description": "사용자가 전체 품목 리스트, 재고확인상태, 구매 우선순위, 단가가 들어간 문서 파일이나 보고서 파일 생성을 요청하면 이 도구를 사용한다. query/status/match_status/sort/limit 조건은 list_inventory_items와 동일하게 적용된다. 생성 파일에는 품명, 품번, 현재고, 필수재고, 재고확인상태, 매칭상태, 단가, 구매 우선순위, 구매판단, 출고합계, 이동 순증감이 포함된다.",
+                    "summary": "Generate inventory status report file for all or filtered items",
+                    "description": "Use when user requests document or report file with full item list, inventory confirmation status, purchase priority, and unit price. Same query/status/match_status/sort/limit filters apply as list_inventory_items. Generated file includes item name, item code, current stock, required stock, inventory confirmation status, matching status, unit price, purchase priority, purchase decision, total outbound, and net movement.",
                     "parameters": [
                         {
                             "name": "query",
                             "in": "query",
                             "required": false,
                             "schema": { "type": "string" },
-                            "description": "품목명 또는 품번 키워드"
+                            "description": "Item name or item code keyword"
                         },
                         {
                             "name": "status",
@@ -692,7 +696,7 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                 "type": "string",
                                 "enum": ["all", "shortage", "sufficient", "out_of_stock", "unverified", "confirmed"]
                             },
-                            "description": "재고 상태 필터"
+                            "description": "Stock status filter"
                         },
                         {
                             "name": "match_status",
@@ -702,7 +706,7 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                 "type": "string",
                                 "enum": ["matched_all", "stock_inbound", "stock_outbound", "stock_only", "movement_only", "inbound_only", "outbound_only", "unclassified"]
                             },
-                            "description": "재고/입고/출고 매칭 상태 필터"
+                            "description": "Stock/inbound/outbound matching status filter"
                         },
                         {
                             "name": "sort",
@@ -713,14 +717,14 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                 "default": "priority",
                                 "enum": ["priority", "consumption", "net_decrease", "shortage", "stock", "name", "outbound"]
                             },
-                            "description": "정렬 기준"
+                            "description": "Sort order"
                         },
                         {
                             "name": "limit",
                             "in": "query",
                             "required": false,
                             "schema": { "type": "integer", "default": 500 },
-                            "description": "최대 보고서 행 수"
+                            "description": "Maximum report rows"
                         }
                     ],
                     "responses": {
@@ -733,8 +737,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/legacy/item-context": {
                 "get": {
                     "operationId": "get_item_document_context",
-                    "summary": "선택한 품목의 문서 작성 컨텍스트 조회",
-                    "description": "사용자가 특정 품목으로 구매 품의 문서를 작성하려 할 때 이 도구를 사용한다. 문서 채우기에 필요한 컨텍스트와 필드 seed, 한국어 guided field 목록을 반환한다. 반드시 전처리 완료된 stock_in_out_monthly.json 스냅샷만 기준으로 답하고, 원천 엑셀 파일을 직접 현재 조회 근거로 설명하면 안 된다.",
+                    "summary": "Query document writing context for selected item",
+                    "description": "Use when user wants to write purchase request document for specific item. Return context needed for filling, field seeds, and guided field list. Answer strictly using preprocessed stock_in_out_monthly.json snapshot; do not cite source Excel file.",
                     "parameters": [
                         {
                             "name": "part_name",
@@ -759,8 +763,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/legacy/item-export": {
                 "post": {
                     "operationId": "export_single_item_document",
-                    "summary": "선택 품목의 단건 구매 품의 문서 생성",
-                    "description": "선택한 품목의 seed 필드와 대화형으로 채운 필드를 합쳐 단건 DOCX를 만들고 다운로드 URL을 반환한다. 품명, 품번, 현재고, 입고/출고 이력은 전처리 완료된 stock_in_out_monthly.json 스냅샷 값을 권위값으로 사용한다.",
+                    "summary": "Generate single-item purchase request document for selected item",
+                    "description": "Merge selected item's seed fields with interactively filled fields to generate single DOCX and return download URL. Item name, item code, current stock, and inbound/outbound history use preprocessed stock_in_out_monthly.json snapshot as authoritative source.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -790,8 +794,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/legacy/item-approve": {
                 "post": {
                     "operationId": "approve_and_generate_item_document",
-                    "summary": "승인/진행 의사 이후 단건 구매 품의 문서 최종 생성",
-                    "description": "사용자가 승인해, 진행해 같은 긍정 의사를 보이면 이 도구를 사용한다. 가격 기준 문서 생성 방침을 적용하고, 일반적인 기본값을 채워 초안과 다운로드 URL을 함께 반환한다. 재고와 교체 이력은 전처리 완료된 stock_in_out_monthly.json 스냅샷을 기준으로 덮어쓴다.",
+                    "summary": "Generate final single-item purchase request document after approval/confirmation",
+                    "description": "Use when user expresses approval or intent to proceed. Apply price-based document generation policy, fill default values, and return draft with download URL. Stock and replacement history overwritten using preprocessed stock_in_out_monthly.json snapshot.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -821,8 +825,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/pdf/render": {
                 "post": {
                     "operationId": "render_markdown_pdf",
-                    "summary": "Markdown 보고서를 PDF 파일로 생성",
-                    "description": "사용자가 수리 완료 보고서, 업무 보고, 회의록, 분석 결과, 요약문을 PDF 또는 형식이 지정되지 않은 문서 파일로 요청하면 Markdown 본문을 이 도구에 전달해 PDF 다운로드 링크를 생성한다. 사용자가 Word/DOCX 또는 Excel/XLSX를 명시하면 이 도구가 아니라 해당 형식의 렌더링 도구를 호출한다. 제목은 title에만 넣고 markdown 첫 줄에 같은 제목을 반복하지 않는다. 본문은 생성 정보, 개요, 세부 내용, 표/목록, 결론 또는 조치사항 순서로 정리한다. PDF를 직접 생성할 수 없다고 답하지 말고 이 도구를 호출한다. 구매 품의서 자체 DOCX/ZIP 생성은 구매 품의서 전용 도구를 사용하고, 보고용 PDF는 이 도구를 사용한다.",
+                    "summary": "Render Markdown report as PDF file",
+                    "description": "Use when user requests repair report, work report, meeting minutes, analysis, or summary as PDF or unspecified format. Pass Markdown body to this tool to generate PDF download link. If user specifies Word/DOCX or Excel/XLSX, call appropriate format rendering tool instead. Put title in title field only, not repeated on first Markdown line. Organize body as: generation info, overview, details, tables/lists, conclusion/actions. Always call this tool for PDF; do not say you cannot generate PDF. Use purchase-specific tool for purchase request DOCX/ZIP; use this for reporting PDFs.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -833,16 +837,16 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                     "properties": {
                                         "title": {
                                             "type": "string",
-                                            "description": "보고서 제목",
-                                            "example": "엘리베이터 5기 수리 및 점검 세부 내역 보고서"
+                                            "description": "Report title",
+                                            "example": "Elevator 5-unit repair and inspection details report"
                                         },
                                         "markdown": {
                                             "type": "string",
-                                            "description": "PDF로 렌더링할 Markdown 보고서 본문"
+                                            "description": "Markdown report body to render as PDF"
                                         },
                                         "file_name": {
                                             "type": ["string", "null"],
-                                            "description": "선택 PDF 파일명",
+                                            "description": "Optional PDF filename",
                                             "example": "elevator_repair_report.pdf"
                                         },
                                         "page_size": {
@@ -857,15 +861,15 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                         },
                                         "generated_for": {
                                             "type": ["string", "null"],
-                                            "description": "문서 생성 대상자 이름. 알고 있는 현재 사용자/요청자 이름을 넣는다."
+                                            "description": "Name of document recipient; use current user/requester name if known"
                                         },
                                         "account_name": {
                                             "type": ["string", "null"],
-                                            "description": "문서를 요청한 계정 이름"
+                                            "description": "Account name that requested document"
                                         },
                                         "account_email": {
                                             "type": ["string", "null"],
-                                            "description": "문서를 요청한 계정 이메일"
+                                            "description": "Account email that requested document"
                                         }
                                     }
                                 }
@@ -882,8 +886,8 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/chat/docx": {
                 "post": {
                     "operationId": "render_chat_docx",
-                    "summary": "본문 또는 채팅 기록을 Word DOCX 파일로 내보내기",
-                    "description": "사용자가 보고서, 요약문, 업무보고, 재고현황 보고서, 현재 대화 내용, 채팅 기록, 이전 답변을 워드 파일, Word 파일, DOCX 문서로 요청하면 작성한 본문을 transcript에 넣거나 messages를 전달해 DOCX 다운로드 링크를 생성한다. 제목은 title에만 넣고 transcript 첫 줄에 같은 제목을 반복하지 않는다. Word 출력에는 Markdown 문법 기호가 남지 않으며 Markdown 표는 실제 Word 표로 렌더링된다. title만 전달하지 않는다. 구매 품의서 템플릿 DOCX 생성에는 사용하지 않는다.",
+                    "summary": "Export body or chat history as Word DOCX file",
+                    "description": "Use when user requests reports, summaries, work reports, inventory reports, current chat, chat history, or previous answers as Word/DOCX. Put body in transcript or pass messages to generate DOCX download link. Put title in title field only, not repeated on first transcript line. Word output has no Markdown syntax symbols; Markdown tables render as actual Word tables. Do not pass title alone. Do not use for purchase request template DOCX generation.",
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -894,11 +898,11 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                     "properties": {
                                         "title": {
                                             "type": "string",
-                                            "description": "문서 제목"
+                                            "description": "Document title"
                                         },
                                         "messages": {
                                             "type": "array",
-                                            "description": "내보낼 채팅 메시지 목록",
+                                            "description": "Chat messages to export",
                                             "items": {
                                                 "type": "object",
                                                 "required": ["role", "content"],
@@ -912,24 +916,24 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                         },
                                         "transcript": {
                                             "type": "string",
-                                            "description": "Word 문서에 넣을 보고서 본문 또는 messages 대신 사용할 전체 채팅 전문. 빈 값으로 보내지 않는다."
+                                            "description": "Report body for Word document, or full chat transcript to use instead of messages. Do not send empty."
                                         },
                                         "file_name": {
                                             "type": ["string", "null"],
-                                            "description": "선택 DOCX 파일명",
+                                            "description": "Optional DOCX filename",
                                             "example": "chat_export.docx"
                                         },
                                         "generated_for": {
                                             "type": ["string", "null"],
-                                            "description": "문서 생성 대상자 이름. 알고 있는 현재 사용자/요청자 이름을 넣는다."
+                                            "description": "Name of document recipient; use current user/requester name if known"
                                         },
                                         "account_name": {
                                             "type": ["string", "null"],
-                                            "description": "문서를 요청한 계정 이름"
+                                            "description": "Account name that requested document"
                                         },
                                         "account_email": {
                                             "type": ["string", "null"],
-                                            "description": "문서를 요청한 계정 이메일"
+                                            "description": "Account email that requested document"
                                         }
                                     }
                                 }
@@ -946,7 +950,7 @@ async fn openapi_spec() -> Json<serde_json::Value> {
             "/document/chat/xlsx": {
                 "post": {
                     "operationId": "render_chat_xlsx",
-                    "summary": "본문 또는 채팅 기록을 Excel XLSX 파일로 내보내기",
+                    "summary": "Export body or chat history as Excel XLSX file",
                     "description": "사용자가 보고서, 요약문, 업무보고, 재고현황 보고서, 현재 대화 내용, 채팅 기록, 이전 답변을 엑셀 파일, Excel 파일, XLSX 문서로 요청하면 표 형식 본문을 transcript에 넣거나 messages를 전달해 XLSX 다운로드 링크를 생성한다. 제목은 title에만 넣고 transcript 첫 줄에 같은 제목을 반복하지 않는다. Excel 출력에는 Markdown 문법 기호가 남지 않으며 Markdown 표는 실제 행/열로 렌더링된다. title만 전달하지 않는다.",
                     "requestBody": {
                         "required": true,
@@ -958,11 +962,11 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                     "properties": {
                                         "title": {
                                             "type": "string",
-                                            "description": "문서 제목"
+                                            "description": "Document title"
                                         },
                                         "messages": {
                                             "type": "array",
-                                            "description": "내보낼 채팅 메시지 목록",
+                                            "description": "Chat messages to export",
                                             "items": {
                                                 "type": "object",
                                                 "required": ["role", "content"],
@@ -976,24 +980,24 @@ async fn openapi_spec() -> Json<serde_json::Value> {
                                         },
                                         "transcript": {
                                             "type": "string",
-                                            "description": "Excel 파일에 넣을 보고서 본문 또는 messages 대신 사용할 전체 채팅 전문. 빈 값으로 보내지 않는다."
+                                            "description": "Report body for Excel file, or full chat transcript to use instead of messages. Do not send empty."
                                         },
                                         "file_name": {
                                             "type": ["string", "null"],
-                                            "description": "선택 XLSX 파일명",
+                                            "description": "Optional XLSX filename",
                                             "example": "chat_export.xlsx"
                                         },
                                         "generated_for": {
                                             "type": ["string", "null"],
-                                            "description": "문서 생성 대상자 이름. 알고 있는 현재 사용자/요청자 이름을 넣는다."
+                                            "description": "Name of document recipient; use current user/requester name if known"
                                         },
                                         "account_name": {
                                             "type": ["string", "null"],
-                                            "description": "문서를 요청한 계정 이름"
+                                            "description": "Account name that requested document"
                                         },
                                         "account_email": {
                                             "type": ["string", "null"],
-                                            "description": "문서를 요청한 계정 이메일"
+                                            "description": "Account email that requested document"
                                         }
                                     }
                                 }
@@ -1062,14 +1066,14 @@ fn build_state() -> AppState {
         "purchase_request".to_string(),
         TemplateDefinition {
             id: "purchase_request",
-            display_name: "구매 품의서",
+            display_name: "Purchase request",
             required_fields: vec![
-                "품명",
-                "수량",
-                "납품업체",
+                "Item name",
+                "Quantity",
+                "Supplier",
                 "구매사유",
-                "담당자 직접입력",
-                "부품역할",
+                "Responsible person (manual)",
+                "Part role",
             ],
         },
     )]);
@@ -1084,7 +1088,8 @@ fn build_state() -> AppState {
             .or_else(|| Some(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("DB")))
             .filter(|path| path.exists()),
         public_base_url: std::env::var("DOCUMENT_SERVICE_PUBLIC_BASE_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:8001".to_string())
+            .or_else(|_| std::env::var("PORT_PROJECT_PUBLIC_BASE_URL"))
+            .unwrap_or_else(|_| "http://192.168.100.202".to_string())
             .trim_end_matches('/')
             .to_string(),
         markdown_pdf_base_url: std::env::var("MARKDOWN_PDF_INTERNAL_BASE_URL")
@@ -1349,11 +1354,11 @@ async fn generate_legacy_document_package(
         .cloned()
         .collect::<Vec<_>>();
     let message = format!(
-        "구매 품의 문서 {}건을 생성했고 ZIP 파일 {} 준비를 완료했습니다.",
+        "Generated {} purchase request documents and completed ZIP file {} preparation.",
         run.generated_count, zip_file_name
     );
     let assistant_summary = format!(
-        "구매 품의 문서 전체 생성이 완료되었습니다. 총 {}건이 생성되었고, ZIP 다운로드 링크는 {} 입니다.",
+        "Purchase request generation complete. {} documents generated; ZIP download link: {}",
         run.generated_count, download_url
     );
 
@@ -1454,7 +1459,7 @@ async fn list_legacy_shortages(
 
     Ok(Json(LegacyShortagesResponse {
         data_source: "processed_snapshot_json".into(),
-        source_policy: "현재 조회는 전처리 완료된 stock_in_out_monthly.json 스냅샷만 기준으로 합니다. 원천 입고/재고/출고 엑셀은 배치 생성용 입력 데이터이며 직접 조회 근거로 사용하지 않습니다.".into(),
+        source_policy: "Query uses only preprocessed stock_in_out_monthly.json snapshot. Source inbound/stock/outbound Excel files are batch generation input data, not direct query basis.".into(),
         snapshot_json_path,
         snapshot_date,
         total_count,
@@ -1485,7 +1490,7 @@ async fn list_legacy_inventory_items(
 
     Ok(Json(LegacyInventoryResponse {
         data_source: "processed_snapshot_json".into(),
-        source_policy: "현재 조회는 전처리 완료된 stock_in_out_monthly.json 스냅샷만 기준으로 합니다. 원천 입고/재고/출고 엑셀은 배치 생성용 입력 데이터이며 직접 조회 근거로 사용하지 않습니다.".into(),
+        source_policy: "Query uses only preprocessed stock_in_out_monthly.json snapshot. Source inbound/stock/outbound Excel files are batch generation input data, not direct query basis.".into(),
         snapshot_json_path,
         snapshot_date,
         total_count,
@@ -1561,7 +1566,7 @@ async fn export_legacy_inventory_report(
         issue_download_path(&state, "/document/legacy/download", &output_path, &user).await;
     let download_url = format!("{}{download_path}", state.public_base_url);
     let assistant_summary = format!(
-        "재고 현황 보고서 파일을 생성했습니다. 총 {}개 품목이 포함되었고, 다운로드 링크는 {} 입니다.",
+        "Generated inventory status report file. {} items included; download link: {}",
         items.len(), download_url
     );
 
@@ -1586,7 +1591,7 @@ async fn get_legacy_item_context(
     let part_name = part
         .get("part_name")
         .and_then(|value| value.as_str())
-        .unwrap_or("기록없음")
+        .unwrap_or("No record")
         .to_string();
     let part_no = part
         .get("part_no")
@@ -1616,7 +1621,7 @@ async fn get_legacy_item_context(
         .unwrap_or(0) as usize;
     let current_stock_text = current_stock
         .map(|value| format!("{value:.0}"))
-        .unwrap_or_else(|| "재고 미확인".to_string());
+        .unwrap_or_else(|| "Stock unverified".to_string());
     let projected_stock_text = projected_stock_balance
         .map(|value| format!("{value:.0}"))
         .unwrap_or_else(|| "-".to_string());
@@ -1632,23 +1637,23 @@ async fn get_legacy_item_context(
     let stock_state = describe_inventory_state(current_stock, required_stock, inventory_confirmed);
 
     let context = format!(
-        "품목명: {part_name}\n품번: {part_no}\n현재고(재고파일 기준): {current_stock_text}\n필수재고: {required_stock_text}\n가용재고: {available_stock_text}\n과부족(원본): {shortage_gap_text}\n3개년 이동 순증감: {movement_net_qty:.0}\n이력 기반 추정잔량: {projected_stock_text}\n입고 합계: {inbound_qty_sum:.0}\n출고 합계: {outbound_qty_sum:.0}\n출고 건수: {outbound_count}\n재고 매칭 상태: {inventory_match_label} ({inventory_match_status})\n상태: {stock_state}"
+        "Item name: {part_name}\nItem code: {part_no}\nCurrent stock(per inventory file): {current_stock_text}\nRequired stock: {required_stock_text}\n가용재고: {available_stock_text}\nSurplus/shortage(원본): {shortage_gap_text}\n3개년 Net movement: {movement_net_qty:.0}\n이력 기반 Projected balance: {projected_stock_text}\n입고 합계: {inbound_qty_sum:.0}\n출고 합계: {outbound_qty_sum:.0}\nOutbound count: {outbound_count}\n재고 매칭 상태: {inventory_match_label} ({inventory_match_status})\n상태: {stock_state}"
     );
 
     let mut fields_seed = BTreeMap::new();
     merge_snapshot_part_into_fields(&mut fields_seed, &part, Some(snapshot_json_path.as_str()));
     fields_seed.insert(
-        "부품역할".into(),
-        serde_json::Value::String("(직접입력)".into()),
+        "Part role".into(),
+        serde_json::Value::String("(Manual entry)".into()),
     );
     fields_seed
-        .entry("신규 거래업체".into())
-        .or_insert_with(|| serde_json::Value::String("(직접입력)".into()));
+        .entry("New trading vendor".into())
+        .or_insert_with(|| serde_json::Value::String("(Manual entry)".into()));
 
     let guided_fields = build_guided_fields_for_purchase_request(&fields_seed);
 
     let assistant_summary = format!(
-        "{} ({}) 품목의 문서 작성 컨텍스트를 준비했습니다. 현재 조회 기준은 전처리 완료된 stock_in_out_monthly.json 스냅샷이며 원천 엑셀을 직접 참조한 답변이 아닙니다. 이제 guided_fields를 기준으로 대화형으로 값을 채운 뒤 단건 문서를 생성하면 됩니다.",
+        "Prepared document writing context for {} ({}). Query basis is the preprocessed stock_in_out_monthly.json snapshot, not direct source Excel reference. Fill values interactively using guided_fields, then generate single-item document.",
         part_name, part_no,
     );
 
@@ -1657,7 +1662,7 @@ async fn get_legacy_item_context(
         part_no,
         context,
         data_source: "processed_snapshot_json".into(),
-        source_policy: "현재 조회는 전처리 완료된 stock_in_out_monthly.json 스냅샷만 기준으로 합니다. 원천 입고/재고/출고 엑셀은 배치 생성용 입력 데이터이며 직접 조회 근거로 사용하지 않습니다.".into(),
+        source_policy: "Query uses only preprocessed stock_in_out_monthly.json snapshot. Source inbound/stock/outbound Excel files are batch generation input data, not direct query basis.".into(),
         snapshot_json_path,
         fields_seed,
         guided_fields,
@@ -1695,7 +1700,7 @@ async fn export_legacy_item_document(
             AppError::bad_request("legacy DOCX template could not be resolved".into())
         })?;
 
-    let item_name = as_string(fields.get("품명"), "purchase_request");
+    let item_name = as_string(fields.get("Item name"), "purchase_request");
     let file_name = format!(
         "single_{}_{}.docx",
         sanitize_filename_for_output(&item_name),
@@ -1716,7 +1721,7 @@ async fn export_legacy_item_document(
         issue_download_path(&state, "/document/legacy/download", &output_path, &user).await;
     let download_url = format!("{}{download_path}", state.public_base_url);
     let assistant_summary = format!(
-        "단건 구매 품의 문서를 생성했습니다. 템플릿 경로는 {} 이고, 다운로드 링크는 {} 입니다.",
+        "Generated single-item purchase request document. Template path: {}; download link: {}",
         template_path, download_url
     );
 
@@ -1753,7 +1758,7 @@ async fn approve_legacy_item_document(
     let part_name = part
         .get("part_name")
         .and_then(|value| value.as_str())
-        .unwrap_or("기록없음")
+        .unwrap_or("No record")
         .to_string();
     let part_no = part
         .get("part_no")
@@ -1769,20 +1774,20 @@ async fn approve_legacy_item_document(
     let snapshot_json_path = current_snapshot_json_path(&state)?;
     merge_snapshot_part_into_fields(&mut fields, &part, Some(snapshot_json_path.as_str()));
     fields
-        .entry("신규 거래업체".into())
-        .or_insert_with(|| serde_json::Value::String("(직접입력)".into()));
+        .entry("New trading vendor".into())
+        .or_insert_with(|| serde_json::Value::String("(Manual entry)".into()));
     fields
-        .entry("제조사".into())
-        .or_insert_with(|| serde_json::Value::String("기존 등록 제조사 기준".into()));
+        .entry("Manufacturer".into())
+        .or_insert_with(|| serde_json::Value::String("Per registered manufacturer".into()));
     fields
-        .entry("단위".into())
+        .entry("Unit".into())
         .or_insert_with(|| serde_json::Value::String("EA".into()));
     fields
-        .entry("담당자 직접입력".into())
-        .or_insert_with(|| serde_json::Value::String("자재관리팀 담당자".into()));
-    fields.entry("부품역할".into()).or_insert_with(|| {
+        .entry("Responsible person (manual)".into())
+        .or_insert_with(|| serde_json::Value::String("Materials Management Team contact".into()));
+    fields.entry("Part role".into()).or_insert_with(|| {
         serde_json::Value::String(format!(
-            "{}는 설비의 정상 운전을 유지하기 위해 필요한 핵심 부품으로, 현장 장비의 기능 유지와 예방 정비 목적에 사용됩니다. 적기 교체 및 확보를 통해 설비 고장 위험과 비가동 시간을 줄이는 데 활용됩니다.",
+            "{} is a critical part needed to maintain equipment operation, used for maintaining field equipment function and preventive maintenance. Timely replacement and supply reduce equipment failure risk and downtime.",
             part_name
         ))
     });
@@ -1806,15 +1811,15 @@ async fn approve_legacy_item_document(
     );
 
     let pricing_decision = decide_purchase_v2(
-        as_f64(fields.get("필수재고량")),
-        as_f64(fields.get("현재고")).unwrap_or(0.0),
-        as_f64(fields.get("단가")),
+        as_f64(fields.get("Required stock qty")),
+        as_f64(fields.get("Current stock")).unwrap_or(0.0),
+        as_f64(fields.get("Unit price")),
     );
     let draft_preview = render_preview(
         &TemplateDefinition {
             id: "purchase_request",
-            display_name: "구매 품의서",
-            required_fields: vec!["품명", "수량", "납품업체"],
+            display_name: "Purchase request",
+            required_fields: vec!["Item name", "Quantity", "Supplier"],
         },
         &fields,
     );
@@ -1846,7 +1851,7 @@ async fn approve_legacy_item_document(
         issue_download_path(&state, "/document/legacy/download", &output_path, &user).await;
     let download_url = format!("{}{download_path}", state.public_base_url);
     let assistant_summary = format!(
-        "{} ({}) 품목에 대해 가격 기준 문서 생성 방침을 적용하여 최종 문서를 생성했습니다. 초안을 검토한 뒤 다운로드 링크 {} 에서 파일을 받을 수 있습니다.",
+        "Generated final document for {} ({}) using price-based generation policy. Review the draft and download the file from: {}",
         part_name, part_no, download_url
     );
 
@@ -1890,7 +1895,7 @@ async fn render_markdown_pdf_proxy(
             issue_download_path(&state, "/document/pdf/download", &decoded_path, &user).await;
         upstream.download_url = format!("{}{}", state.public_base_url, upstream.download_path);
         upstream.assistant_summary = format!(
-            "{} PDF 파일을 생성했습니다. 다운로드 링크는 {} 입니다.",
+            "Generated {} PDF file. Download link: {}",
             upstream.title, upstream.download_url
         );
     }
@@ -2051,25 +2056,25 @@ fn extract_fields(
         merge_explicit_field_values(&mut fields, input);
         let quantity_re = Regex::new(r"(\d+)\s*(개|EA|ea)?").unwrap();
 
-        if !fields.contains_key("품명") && input.contains("SSD") {
-            fields.insert("품명".into(), serde_json::Value::String("SSD".into()));
+        if !fields.contains_key("Item name") && input.contains("SSD") {
+            fields.insert("Item name".into(), serde_json::Value::String("SSD".into()));
         }
 
-        if !fields.contains_key("품명") && input.contains("HDD") {
-            fields.insert("품명".into(), serde_json::Value::String("HDD".into()));
+        if !fields.contains_key("Item name") && input.contains("HDD") {
+            fields.insert("Item name".into(), serde_json::Value::String("HDD".into()));
         }
 
-        if !fields.contains_key("수량") {
+        if !fields.contains_key("Quantity") {
             if let Some(captures) = quantity_re.captures(input) {
                 if let Ok(quantity) = captures[1].parse::<u64>() {
-                    fields.insert("수량".into(), serde_json::Value::Number(quantity.into()));
+                    fields.insert("Quantity".into(), serde_json::Value::Number(quantity.into()));
                 }
             }
         }
 
-        if !fields.contains_key("납품업체") {
+        if !fields.contains_key("Supplier") {
             if let Some(vendor) = extract_vendor(input) {
-                fields.insert("납품업체".into(), serde_json::Value::String(vendor));
+                fields.insert("Supplier".into(), serde_json::Value::String(vendor));
             }
         }
     }
@@ -2085,49 +2090,49 @@ fn merge_explicit_field_values(fields: &mut BTreeMap<String, serde_json::Value>,
     }
 
     let known_fields = [
-        "품명",
-        "수량",
-        "납품업체",
+        "Item name",
+        "Quantity",
+        "Supplier",
         "구매사유",
-        "담당자 직접입력",
-        "부품역할",
-        "품번",
-        "현재고",
-        "필수재고량",
-        "가용재고량",
-        "과부족",
-        "이동순증감",
-        "추정잔량",
-        "재고확인상태",
-        "재고매칭상태",
-        "단가",
-        "제조사",
-        "단위",
-        "총 교체수량",
-        "교체내역 유무",
-        "입고일",
-        "사용일",
-        "사용처",
-        "문제점",
-        "교체사유",
-        "날짜1",
-        "날짜2",
-        "날짜3",
-        "날짜4",
-        "날짜5",
-        "날짜6",
-        "교체수량1",
-        "교체수량2",
-        "교체수량3",
-        "교체수량4",
-        "교체수량5",
-        "교체수량6",
-        "호기1",
-        "호기2",
-        "호기3",
-        "호기4",
-        "호기5",
-        "호기6",
+        "Responsible person (manual)",
+        "Part role",
+        "Item code",
+        "Current stock",
+        "Required stock qty",
+        "Available stock qty",
+        "Surplus/shortage",
+        "Net movement",
+        "Projected balance",
+        "Stock confirmation status",
+        "Stock match status",
+        "Unit price",
+        "Manufacturer",
+        "Unit",
+        "Total replacement qty",
+        "Replacement history",
+        "Inbound date",
+        "Last use date",
+        "Use location",
+        "Issue",
+        "Replacement reason",
+        "Date 1",
+        "Date 2",
+        "Date 3",
+        "Date 4",
+        "Date 5",
+        "Date 6",
+        "Replacement qty 1",
+        "Replacement qty 2",
+        "Replacement qty 3",
+        "Replacement qty 4",
+        "Replacement qty 5",
+        "Replacement qty 6",
+        "Equipment 1",
+        "Equipment 2",
+        "Equipment 3",
+        "Equipment 4",
+        "Equipment 5",
+        "Equipment 6",
     ];
 
     for raw_line in input.lines() {
@@ -2189,7 +2194,7 @@ fn parse_field_value(value: &str) -> serde_json::Value {
 
 fn extract_vendor(input: &str) -> Option<String> {
     let patterns = [
-        r"납품업체는\s*([^\s,.]+)",
+        r"Supplier는\s*([^\s,.]+)",
         r"업체는\s*([^\s,.]+)",
         r"([A-Za-z0-9가-힣]+)\s*에서\s*구매",
     ];
@@ -2206,12 +2211,12 @@ fn extract_vendor(input: &str) -> Option<String> {
 
 fn next_question_for(field: &str) -> String {
     match field {
-        "품명" => "어떤 품목을 요청할까요? 품명이나 품번을 알려주면 스냅샷 JSON 기준으로 재고를 자동 반영합니다.".into(),
-        "수량" => "수량은 몇 개로 할까요?".into(),
-        "납품업체" => "납품업체는 어디로 할까?".into(),
-        "구매사유" => "구매사유는 어떻게 적을까요? 재고 부족, 설비 중단 위험, 사용 이력 중 확인된 근거를 알려주세요.".into(),
-        "담당자 직접입력" => "담당자는 누구로 적을까요? 모르면 자재관리팀 담당자로 둘 수 있습니다.".into(),
-        "부품역할" => "부품역할 칸에 넣을 설명이 필요합니다. 이 부품이 설비에서 하는 역할이나 사용 목적을 알려주세요.".into(),
+        "Item name" => "What item do you need? Tell me item name or code and stock will auto-populate using snapshot JSON.".into(),
+        "Quantity" => "How many units do you need?".into(),
+        "Supplier" => "Which supplier?".into(),
+        "구매사유" => "How should we state the purchase reason? Provide evidence: inventory shortage, equipment downtime risk, or documented usage history.".into(),
+        "Responsible person (manual)" => "Who is the responsible person? If unknown, we can use the Materials Management Team contact.".into(),
+        "Part role" => "Describe this part's role. Tell me what function it serves or its purpose in the equipment.".into(),
         _ => format!("{field} 값을 알려주세요."),
     }
 }
@@ -2220,15 +2225,15 @@ fn render_preview(
     template: &TemplateDefinition,
     fields: &BTreeMap<String, serde_json::Value>,
 ) -> String {
-    let item = string_or_placeholder(fields.get("품명"));
-    let part_no = string_or_placeholder(fields.get("품번"));
-    let current_stock = string_or_placeholder(fields.get("현재고"));
-    let quantity = string_or_placeholder(fields.get("수량"));
-    let vendor = string_or_placeholder(fields.get("납품업체"));
-    let inventory_status = string_or_placeholder(fields.get("재고확인상태"));
+    let item = string_or_placeholder(fields.get("Item name"));
+    let part_no = string_or_placeholder(fields.get("Item code"));
+    let current_stock = string_or_placeholder(fields.get("Current stock"));
+    let quantity = string_or_placeholder(fields.get("Quantity"));
+    let vendor = string_or_placeholder(fields.get("Supplier"));
+    let inventory_status = string_or_placeholder(fields.get("Stock confirmation status"));
 
     format!(
-        "[{}]\n- 품명: {}\n- 품번: {}\n- 현재고(재고파일 기준): {}\n- 재고확인상태: {}\n- 수량: {}\n- 납품업체: {}\n{}",
+        "[{}]\n- Item name: {}\n- Item code: {}\n- Current stock(per inventory file): {}\n- Stock confirmation status: {}\n- Quantity: {}\n- Supplier: {}\n{}",
         template.display_name,
         item,
         part_no,
@@ -2245,26 +2250,26 @@ fn string_or_placeholder(value: Option<&serde_json::Value>) -> String {
         Some(serde_json::Value::String(v)) if !v.is_empty() => v.clone(),
         Some(serde_json::Value::Number(v)) => v.to_string(),
         Some(other) if !other.is_null() => other.to_string(),
-        _ => "(미입력)".into(),
+        _ => "(Not entered)".into(),
     }
 }
 
 fn preview_purchase_note(fields: &BTreeMap<String, serde_json::Value>) -> String {
     if fields
-        .get("재고확인상태")
+        .get("Stock confirmation status")
         .and_then(|value| value.as_str())
         .map(|value| value == "미확인")
         .unwrap_or(false)
     {
-        return "- 구매판단: 재고 미확인\n- 자동사유: 현재 재고파일에서 매칭되는 재고 행이 없어 재고를 확정할 수 없습니다. 최근 입출고 이력을 검토한 뒤 구매 여부를 판단해야 합니다.\n".into();
+        return "- Purchase decision: Stock unverified\n- 자동사유: 현재 재고파일에서 매칭되는 재고 행이 없어 재고를 확정할 수 없습니다. 최근 입출고 이력을 검토한 뒤 구매 여부를 판단해야 합니다.\n".into();
     }
     let decision = decide_purchase_v2(
-        as_f64(fields.get("필수재고량")),
-        as_f64(fields.get("현재고")).unwrap_or(0.0),
-        as_f64(fields.get("단가")),
+        as_f64(fields.get("Required stock qty")),
+        as_f64(fields.get("Current stock")).unwrap_or(0.0),
+        as_f64(fields.get("Unit price")),
     );
     let reason = build_purchase_reason_text(&build_legacy_row(fields, &decision));
-    format!("- 구매판단: {}\n- 자동사유: {}\n", decision.note, reason)
+    format!("- Purchase decision: {}\n- 자동사유: {}\n", decision.note, reason)
 }
 
 fn as_f64(value: Option<&serde_json::Value>) -> Option<f64> {
@@ -2291,44 +2296,44 @@ fn build_legacy_row(
     let replacement_dates =
         std::array::from_fn(|idx| as_string(fields.get(format!("날짜{}", idx + 1).as_str()), ""));
     let replacement_qtys = std::array::from_fn(|idx| {
-        as_string(fields.get(format!("교체수량{}", idx + 1).as_str()), "")
+        as_string(fields.get(format!("교체Quantity{}", idx + 1).as_str()), "")
     });
     let replacement_hosts =
         std::array::from_fn(|idx| as_string(fields.get(format!("호기{}", idx + 1).as_str()), ""));
-    let item_name = as_string(fields.get("품명"), "기록없음");
-    let purchase_qty = as_f64(fields.get("수량")).unwrap_or(1.0).max(1.0);
+    let item_name = as_string(fields.get("Item name"), "No record");
+    let purchase_qty = as_f64(fields.get("Quantity")).unwrap_or(1.0).max(1.0);
     let has_replacement_history = fields
-        .get("교체내역 유무")
+        .get("Replacement history")
         .and_then(|v| v.as_str())
         .map(|v| v == "유")
         .unwrap_or_else(|| replacement_dates.iter().any(|v| !v.is_empty()));
 
     LegacyDocumentRow {
         part_key: as_string(fields.get("파트키"), &item_name),
-        part_no: as_string(fields.get("품번"), &item_name),
+        part_no: as_string(fields.get("Item code"), &item_name),
         part_name: item_name,
-        received_date: as_string(fields.get("입고일"), "입고기록없음"),
-        used_date_last: as_string(fields.get("사용일"), "출고기록없음"),
-        used_where: as_string(fields.get("사용처"), "기록없음"),
-        usage_reason: as_string(fields.get("문제점"), "기록없음"),
-        replacement_reason: as_string(fields.get("교체사유"), "기록없음"),
-        current_stock_before: as_f64(fields.get("현재고")).unwrap_or(0.0),
-        required_stock: as_f64(fields.get("필수재고량")),
+        received_date: as_string(fields.get("Inbound date"), "No inbound record"),
+        used_date_last: as_string(fields.get("Last use date"), "No outbound record"),
+        used_where: as_string(fields.get("Use location"), "No record"),
+        usage_reason: as_string(fields.get("Issue"), "No record"),
+        replacement_reason: as_string(fields.get("Replacement reason"), "No record"),
+        current_stock_before: as_f64(fields.get("Current stock")).unwrap_or(0.0),
+        required_stock: as_f64(fields.get("Required stock qty")),
         purchase_qty,
         purchase_order_note: decision.note.clone(),
-        issued_qty: as_string(fields.get("총 교체수량"), &format!("{purchase_qty:.0}")),
+        issued_qty: as_string(fields.get("Total replacement qty"), &format!("{purchase_qty:.0}")),
         replacement_dates,
         replacement_qtys,
         replacement_hosts,
         vendor_name: first_string_field(
             fields,
-            &["이전구매업체", "구거래처", "구-거래처", "납품업체"],
-            "기록없음",
+            &["Previous vendor", "Old vendor", "Old vendor", "Supplier"],
+            "No record",
         ),
-        manufacturer_name: as_string(fields.get("제조사"), "기록없음"),
-        unit: as_string(fields.get("단위"), "기록없음"),
-        unit_price: as_string(fields.get("단가"), "기록없음"),
-        part_role: as_string(fields.get("부품역할"), "(직접입력)"),
+        manufacturer_name: as_string(fields.get("Manufacturer"), "No record"),
+        unit: as_string(fields.get("Unit"), "No record"),
+        unit_price: as_string(fields.get("Unit price"), "No record"),
+        part_role: as_string(fields.get("Part role"), "(Manual entry)"),
         template_kind: decision.template_kind,
         has_replacement_history,
     }
@@ -2343,9 +2348,9 @@ fn try_render_legacy_docx(
     }
 
     let decision = decide_purchase_v2(
-        as_f64(fields.get("필수재고량")),
-        as_f64(fields.get("현재고")).unwrap_or(0.0),
-        as_f64(fields.get("단가")),
+        as_f64(fields.get("Required stock qty")),
+        as_f64(fields.get("Current stock")).unwrap_or(0.0),
+        as_f64(fields.get("Unit price")),
     );
     let row = build_legacy_row(fields, &decision);
     let service_root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -2372,7 +2377,7 @@ fn first_string_field(
         if !trimmed.is_empty()
             && !matches!(
                 trimmed,
-                "기록없음" | "(직접입력)" | "(직접기입)" | "(미입력)"
+                "No record" | "(Manual entry)" | "(직접기입)" | "(Not entered)"
             )
         {
             return value;
@@ -2481,6 +2486,8 @@ fn require_registered_tool_user(headers: &HeaderMap) -> Result<RegisteredUser, A
             id: "unit-test-user".into(),
             email: "unit-test@example.local".into(),
             name: "unit-test".into(),
+            rank: None,
+            groups: None,
         });
     }
 
@@ -2493,10 +2500,14 @@ fn require_registered_tool_user(headers: &HeaderMap) -> Result<RegisteredUser, A
         ));
     }
 
+    let rank_raw = header_string(headers, OPEN_WEBUI_USER_RANK_HEADER);
+    let groups_raw = header_string(headers, OPEN_WEBUI_USER_GROUPS_HEADER);
     Ok(RegisteredUser {
         id,
         email: email.clone(),
         name: if name.is_empty() { email } else { name },
+        rank: if rank_raw.is_empty() { None } else { Some(rank_raw) },
+        groups: if groups_raw.is_empty() { None } else { Some(groups_raw) },
     })
 }
 
@@ -2586,11 +2597,18 @@ fn authenticated_upstream_request(
     builder: reqwest::RequestBuilder,
     user: &RegisteredUser,
 ) -> Result<reqwest::RequestBuilder, AppError> {
-    Ok(builder
+    let mut b = builder
         .header(INTERNAL_TOKEN_HEADER, configured_internal_token()?)
         .header(OPEN_WEBUI_USER_ID_HEADER, user.id.as_str())
         .header(OPEN_WEBUI_USER_EMAIL_HEADER, user.email.as_str())
-        .header(OPEN_WEBUI_USER_NAME_HEADER, user.name.as_str()))
+        .header(OPEN_WEBUI_USER_NAME_HEADER, user.name.as_str());
+    if let Some(rank) = user.rank.as_deref() {
+        b = b.header(OPEN_WEBUI_USER_RANK_HEADER, rank);
+    }
+    if let Some(groups) = user.groups.as_deref() {
+        b = b.header(OPEN_WEBUI_USER_GROUPS_HEADER, groups);
+    }
+    Ok(b)
 }
 
 async fn parse_renderer_response(
@@ -2804,7 +2822,7 @@ fn merge_snapshot_part_into_fields(
     let part_name = part
         .get("part_name")
         .and_then(|value| value.as_str())
-        .unwrap_or("기록없음")
+        .unwrap_or("No record")
         .to_string();
     let part_no = part
         .get("part_no")
@@ -2832,26 +2850,26 @@ fn merge_snapshot_part_into_fields(
         .and_then(|value| value.as_array())
         .and_then(|value| value.first())
         .and_then(|value| value.as_str())
-        .unwrap_or("입고기록없음")
+        .unwrap_or("No inbound record")
         .to_string();
     let used_date = part
         .get("outbound_dates")
         .and_then(|value| value.as_array())
         .and_then(|value| value.last())
         .and_then(|value| value.as_str())
-        .unwrap_or("출고기록없음")
+        .unwrap_or("No outbound record")
         .to_string();
 
-    fields.insert("품명".into(), serde_json::Value::String(part_name.clone()));
-    fields.insert("품번".into(), serde_json::Value::String(part_no.clone()));
-    set_optional_numeric_field(fields, "현재고", current_stock);
-    set_optional_numeric_field(fields, "필수재고량", required_stock);
-    set_optional_numeric_field(fields, "가용재고량", available_stock);
-    set_optional_numeric_field(fields, "과부족", shortage_gap);
-    set_optional_numeric_field(fields, "이동순증감", Some(movement_net_qty));
-    set_optional_numeric_field(fields, "추정잔량", projected_stock_balance);
+    fields.insert("Item name".into(), serde_json::Value::String(part_name.clone()));
+    fields.insert("Item code".into(), serde_json::Value::String(part_no.clone()));
+    set_optional_numeric_field(fields, "Current stock", current_stock);
+    set_optional_numeric_field(fields, "Required stock qty", required_stock);
+    set_optional_numeric_field(fields, "Available stock qty", available_stock);
+    set_optional_numeric_field(fields, "Surplus/shortage", shortage_gap);
+    set_optional_numeric_field(fields, "Net movement", Some(movement_net_qty));
+    set_optional_numeric_field(fields, "Projected balance", projected_stock_balance);
     fields.insert(
-        "재고확인상태".into(),
+        "Stock confirmation status".into(),
         serde_json::Value::String(
             if inventory_confirmed {
                 "확인"
@@ -2862,16 +2880,16 @@ fn merge_snapshot_part_into_fields(
         ),
     );
     fields.insert(
-        "재고매칭상태".into(),
+        "Stock match status".into(),
         serde_json::Value::String(describe_inventory_match_status(&inventory_match_status).into()),
     );
-    fields.insert("총 교체수량".into(), serde_json::json!(outbound_qty_sum));
+    fields.insert("Total replacement qty".into(), serde_json::json!(outbound_qty_sum));
     fields.insert(
-        "교체내역 유무".into(),
+        "Replacement history".into(),
         serde_json::Value::String(if outbound_count > 0 { "유" } else { "무" }.into()),
     );
-    fields.insert("입고일".into(), serde_json::Value::String(inbound_date));
-    fields.insert("사용일".into(), serde_json::Value::String(used_date));
+    fields.insert("Inbound date".into(), serde_json::Value::String(inbound_date));
+    fields.insert("Last use date".into(), serde_json::Value::String(used_date));
 
     if let Some(document_context) = part
         .get("document_context")
@@ -2879,25 +2897,25 @@ fn merge_snapshot_part_into_fields(
     {
         if let Some(vendor_name) = snapshot_context_text(document_context.get("vendor_name")) {
             fields
-                .entry("이전구매업체".into())
+                .entry("Previous vendor".into())
                 .or_insert_with(|| serde_json::Value::String(vendor_name.clone()));
             fields
-                .entry("구거래처".into())
+                .entry("Old vendor".into())
                 .or_insert_with(|| serde_json::Value::String(vendor_name.clone()));
             fields
-                .entry("납품업체".into())
+                .entry("Supplier".into())
                 .or_insert_with(|| serde_json::Value::String(vendor_name));
         }
         if let Some(manufacturer_name) =
             snapshot_context_text(document_context.get("manufacturer_name"))
         {
             fields
-                .entry("제조사".into())
+                .entry("Manufacturer".into())
                 .or_insert_with(|| serde_json::Value::String(manufacturer_name));
         }
         if let Some(unit) = snapshot_context_text(document_context.get("unit")) {
             fields
-                .entry("단위".into())
+                .entry("Unit".into())
                 .or_insert_with(|| serde_json::Value::String(unit));
         }
         if let Some(unit_price) = document_context
@@ -2905,39 +2923,39 @@ fn merge_snapshot_part_into_fields(
             .and_then(snapshot_context_number)
         {
             fields
-                .entry("단가".into())
+                .entry("Unit price".into())
                 .or_insert_with(|| serde_json::json!(unit_price));
         }
         if let Some(received_date) = snapshot_context_text(document_context.get("received_date")) {
-            fields.insert("입고일".into(), serde_json::Value::String(received_date));
+            fields.insert("Inbound date".into(), serde_json::Value::String(received_date));
         }
         if let Some(used_date_last) = snapshot_context_text(document_context.get("used_date_last"))
         {
-            fields.insert("사용일".into(), serde_json::Value::String(used_date_last));
+            fields.insert("Last use date".into(), serde_json::Value::String(used_date_last));
         }
         if let Some(used_where) = snapshot_context_text(document_context.get("used_where")) {
-            fields.insert("사용처".into(), serde_json::Value::String(used_where));
+            fields.insert("Use location".into(), serde_json::Value::String(used_where));
         }
         if let Some(usage_reason) = snapshot_context_text(document_context.get("usage_reason")) {
-            fields.insert("문제점".into(), serde_json::Value::String(usage_reason));
+            fields.insert("Issue".into(), serde_json::Value::String(usage_reason));
         }
         if let Some(replacement_reason) =
             snapshot_context_text(document_context.get("replacement_reason"))
         {
             fields.insert(
-                "교체사유".into(),
+                "Replacement reason".into(),
                 serde_json::Value::String(replacement_reason),
             );
         }
         if let Some(issued_qty) = snapshot_context_text(document_context.get("issued_qty")) {
-            fields.insert("총 교체수량".into(), parse_field_value(&issued_qty));
+            fields.insert("Total replacement qty".into(), parse_field_value(&issued_qty));
         }
         if let Some(has_replacement_history) = document_context
             .get("has_replacement_history")
             .and_then(|value| value.as_bool())
         {
             fields.insert(
-                "교체내역 유무".into(),
+                "Replacement history".into(),
                 serde_json::Value::String(
                     if has_replacement_history {
                         "유"
@@ -2951,7 +2969,7 @@ fn merge_snapshot_part_into_fields(
 
         for (json_key, field_prefix) in [
             ("replacement_dates", "날짜"),
-            ("replacement_qtys", "교체수량"),
+            ("replacement_qtys", "교체Quantity"),
             ("replacement_hosts", "호기"),
         ] {
             if let Some(values) = document_context
@@ -2971,7 +2989,7 @@ fn merge_snapshot_part_into_fields(
     }
 
     fields
-        .entry("수량".into())
+        .entry("Quantity".into())
         .or_insert_with(|| serde_json::json!(1));
     fields.insert(
         "재고데이터기준".into(),
@@ -3000,99 +3018,99 @@ fn build_guided_fields_for_purchase_request(
     fields: &BTreeMap<String, serde_json::Value>,
 ) -> Vec<GuidedFieldSpec> {
     let has_replacement_history = fields
-        .get("교체내역 유무")
+        .get("Replacement history")
         .and_then(|value| value.as_str())
         .map(|value| value == "유")
         .unwrap_or(false);
-    let is_over_500k = as_f64(fields.get("단가")).unwrap_or(0.0) >= 500_000.0;
+    let is_over_500k = as_f64(fields.get("Unit price")).unwrap_or(0.0) >= 500_000.0;
 
     let specs: &[(&str, &str, &str)] = match (is_over_500k, has_replacement_history) {
         (true, true) => &[
             (
                 "구매사유",
-                "구매 사유 보강",
-                "이 부품이 왜 지금 필요한지, 재고와 교체 이력을 근거로 정리해줘.",
+                "Strengthen purchase reason",
+                "Explain why this part is needed now based on stock and replacement history.",
             ),
             (
-                "담당자 직접입력",
-                "담당자 확인",
-                "이 문서를 검토하거나 설명할 담당자 정보를 정리해줘.",
+                "Responsible person (manual)",
+                "Confirm responsible person",
+                "Provide contact info for the person who can review or explain this document.",
             ),
             (
-                "납품업체",
-                "업체/거래처 확인",
-                "구매 예정 업체나 비교 가능한 공급업체 정보를 정리해줘.",
+                "Supplier",
+                "Confirm supplier/vendor",
+                "Provide planned supplier or comparable vendor information.",
             ),
             (
-                "부품역할",
-                "부품 설명",
-                "이 부품의 기능과 현장 사용 목적을 문서 본문용으로 정리해줘.",
+                "Part role",
+                "Part description",
+                "Describe this part's function and field use purpose for document body.",
             ),
         ],
         (true, false) => &[
             (
                 "구매사유",
-                "구매 사유 보강",
-                "교체 이력은 적지만 구매가 필요한 이유를 재고 기준으로 정리해줘.",
+                "Strengthen purchase reason",
+                "Explain purchase need based on stock level despite sparse replacement history.",
             ),
             (
-                "담당자 직접입력",
-                "담당자 확인",
-                "문서 담당자 또는 설명 가능한 담당자를 정리해줘.",
+                "Responsible person (manual)",
+                "Confirm responsible person",
+                "Provide document owner or knowledgeable contact.",
             ),
             (
-                "납품업체",
-                "업체/거래처 확인",
-                "공급업체나 견적 대상 업체 정보를 정리해줘.",
+                "Supplier",
+                "Confirm supplier/vendor",
+                "Provide supplier or quote target vendor information.",
             ),
             (
-                "부품역할",
-                "부품 설명",
-                "부품의 핵심 기능과 대체 불가능성을 짧게 정리해줘.",
+                "Part role",
+                "Part description",
+                "Briefly describe part's core function and non-replaceability.",
             ),
         ],
         (false, true) => &[
             (
                 "구매사유",
                 "구매 사유",
-                "소액 구매 문서에 맞게 구매 필요성을 간단명료하게 정리해줘.",
+                "State purchase necessity concisely for small purchase document.",
             ),
             (
-                "담당자 직접입력",
-                "담당자 확인",
-                "담당자 이름이나 부서를 정리해줘.",
+                "Responsible person (manual)",
+                "Confirm responsible person",
+                "Provide responsible person's name or department.",
             ),
             (
-                "납품업체",
-                "업체/거래처 확인",
-                "현재 거래 예정 업체를 간단히 적어줘.",
+                "Supplier",
+                "Confirm supplier/vendor",
+                "State planned trading vendor briefly.",
             ),
             (
-                "부품역할",
-                "부품 설명",
-                "이 부품이 장비에서 하는 역할을 짧게 정리해줘.",
+                "Part role",
+                "Part description",
+                "Briefly describe this part's equipment role.",
             ),
         ],
         (false, false) => &[
             (
                 "구매사유",
                 "구매 사유",
-                "이 부품이 왜 필요한지 핵심만 짧게 정리해줘.",
+                "State core reason for this part briefly.",
             ),
             (
-                "담당자 직접입력",
-                "담당자 확인",
-                "담당자 이름이나 부서를 정리해줘.",
+                "Responsible person (manual)",
+                "Confirm responsible person",
+                "Provide responsible person's name or department.",
             ),
             (
-                "납품업체",
-                "업체/거래처 확인",
-                "구매할 업체나 공급처를 정리해줘.",
+                "Supplier",
+                "Confirm supplier/vendor",
+                "Provide purchasing supplier or vendor.",
             ),
             (
-                "부품역할",
-                "부품 설명",
-                "부품의 사용 목적을 한두 문장으로 정리해줘.",
+                "Part role",
+                "Part description",
+                "Describe part's purpose in one or two sentences.",
             ),
         ],
     };
@@ -3121,7 +3139,7 @@ fn snapshot_context_text(value: Option<&serde_json::Value>) -> Option<String> {
         Some(serde_json::Value::Number(number)) => number.to_string(),
         _ => return None,
     };
-    if raw.is_empty() || matches!(raw.as_str(), "기록없음" | "출고기록없음" | "입고기록없음")
+    if raw.is_empty() || matches!(raw.as_str(), "No record" | "No outbound record" | "No inbound record")
     {
         return None;
     }
@@ -3251,14 +3269,14 @@ fn part_inventory_match_status(part: &serde_json::Value) -> String {
 
 fn describe_inventory_match_status(status: &str) -> &'static str {
     match status {
-        "matched_all" => "재고/입고/출고 모두 매칭",
-        "stock_inbound" => "재고/입고 매칭",
-        "stock_outbound" => "재고/출고 매칭",
-        "stock_only" => "재고만 매칭",
-        "movement_only" => "입출고만 매칭",
-        "inbound_only" => "입고만 매칭",
-        "outbound_only" => "출고만 매칭",
-        _ => "미분류",
+        "matched_all" => "All stock/inbound/outbound matched",
+        "stock_inbound" => "Stock/inbound matched",
+        "stock_outbound" => "Stock/outbound matched",
+        "stock_only" => "Stock only matched",
+        "movement_only" => "Inbound/outbound only matched",
+        "inbound_only" => "Inbound only matched",
+        "outbound_only" => "Outbound only matched",
+        _ => "Unclassified",
     }
 }
 
@@ -3268,24 +3286,24 @@ fn describe_inventory_state(
     inventory_confirmed: bool,
 ) -> String {
     if !inventory_confirmed {
-        return "재고 미확인".into();
+        return "Stock unverified".into();
     }
 
     let Some(current_stock) = current_stock else {
-        return "재고 미확인".into();
+        return "Stock unverified".into();
     };
 
     if current_stock <= 0.0 {
-        return "재고 없음".into();
+        return "No stock".into();
     }
 
     if let Some(required_stock) = required_stock {
         if current_stock < required_stock {
-            return "재고 부족".into();
+            return "Stock shortage".into();
         }
     }
 
-    "재고 확인".into()
+    "Stock confirmed".into()
 }
 
 fn set_optional_numeric_field(
@@ -3311,7 +3329,7 @@ fn build_purchase_reason_from_snapshot(
 ) -> String {
     if !inventory_confirmed {
         return format!(
-            "{} 품목은 현재 재고파일에서 매칭되는 재고 행이 없어 현재고를 확정할 수 없습니다. 최근 3개년 출고 {:.0}개(출고 {}건), 이동 순증감 {:.0}개가 확인되어 재고 현황 재확인 후 구매 필요 여부를 검토해야 합니다.",
+            "{} has no matching stock row in inventory file so current stock cannot be confirmed. Recent 3-year outbound: {} units ({} transactions); net movement: {}. Review stock status and purchase need before proceeding.",
             part_name, outbound_qty_sum, outbound_count, movement_net_qty
         );
     }
@@ -3320,7 +3338,7 @@ fn build_purchase_reason_from_snapshot(
     if let Some(required_stock) = required_stock {
         let shortage_gap = current_stock - required_stock;
         format!(
-            "{} 품목은 재고파일 기준 현재고 {:.0}개, 필수재고 {:.0}개, 과부족 {:.0}개이며 최근 3개년 출고 {:.0}개(출고 {}건), 이동 순증감 {:.0}개가 확인되었습니다. 재고 부족 또는 소진으로 인한 설비 운영 차질 방지를 위해 구매 검토가 필요합니다.",
+            "{} has current stock {} and required stock {}; shortage {}. Recent 3-year outbound: {} units ({} transactions); net movement: {}. Purchase review needed to prevent equipment downtime from stock shortage.",
             part_name,
             current_stock,
             required_stock,
@@ -3331,7 +3349,7 @@ fn build_purchase_reason_from_snapshot(
         )
     } else {
         format!(
-            "{} 품목은 재고파일 기준 현재고 {:.0}개이며 최근 3개년 출고 {:.0}개(출고 {}건), 이동 순증감 {:.0}개가 확인되었습니다. 사용 이력과 재고 수준을 근거로 구매 필요 여부를 검토해야 합니다.",
+            "{} current stock: {} units. Recent 3-year outbound: {} ({} transactions); net movement: {}. Review purchase need based on usage history and stock level.",
             part_name, current_stock, outbound_qty_sum, outbound_count, movement_net_qty
         )
     }
@@ -3342,8 +3360,8 @@ fn find_snapshot_part_for_document(
     input: &str,
     fields: &BTreeMap<String, serde_json::Value>,
 ) -> Option<serde_json::Value> {
-    let part_name = meaningful_lookup_text(fields.get("품명"));
-    let part_no = meaningful_lookup_text(fields.get("품번"));
+    let part_name = meaningful_lookup_text(fields.get("Item name"));
+    let part_no = meaningful_lookup_text(fields.get("Item code"));
     if let Some(found) =
         score_snapshot_part_candidates(parts, part_name.as_deref(), part_no.as_deref(), None)
     {
@@ -3373,7 +3391,7 @@ fn meaningful_lookup_text(value: Option<&serde_json::Value>) -> Option<String> {
     }
     if matches!(
         normalized.as_str(),
-        "미입력" | "직접입력" | "기록없음" | "출고기록없음" | "입고기록없음"
+        "미입력" | "직접입력" | "No record" | "No outbound record" | "No inbound record"
     ) {
         return None;
     }
@@ -3499,19 +3517,19 @@ fn build_shortage_item(part: &serde_json::Value) -> Option<LegacyShortageItem> {
     let stock_status = describe_inventory_state(current_stock, required_stock, inventory_confirmed);
     let summary = match (required_stock, shortage_quantity) {
         (Some(required_stock), Some(shortage_quantity)) => format!(
-            "{} ({})는 재고파일 기준 현재고 {:.0}개, 필수재고 {:.0}개라서 {:.0}개가 부족한 상태입니다. 최근 3개년 이동 순증감은 {:.0}개입니다.",
+            "{} ({})는 per inventory file Current stock {:.0}개, Required stock {:.0}개라서 {:.0}개가 부족한 상태입니다. 최근 3개년 Net movement은 {:.0}개입니다.",
             part_name, part_no, current_value, required_stock, shortage_quantity, movement_net_qty
         ),
         (Some(required_stock), None) => format!(
-            "{} ({})는 재고파일 기준 현재고 {:.0}개, 필수재고 {:.0}개이며 구매 검토가 필요한 상태입니다. 최근 3개년 이동 순증감은 {:.0}개입니다.",
+            "{} ({}) has current stock {} and required stock {}; purchase review needed. Recent 3-year net movement: {}",
             part_name, part_no, current_value, required_stock, movement_net_qty
         ),
         (None, _) => format!(
-            "{} ({})는 재고파일 기준 현재고 {:.0}개이며 최근 3개년 출고합계 {:.0}개, 이동 순증감 {:.0}개가 확인되어 구매 검토가 필요한 상태입니다.",
+            "{} ({}) current stock {}; recent 3-year outbound {} with net movement {}; purchase review needed.",
             part_name, part_no, current_value, outbound_qty_sum, movement_net_qty
         ),
     };
-    let document_request_hint = format!("{part_name} ({part_no}) 품목으로 구매 품의 문서 작성해줘");
+    let document_request_hint = format!("Create purchase request document for {part_name} ({part_no})");
     let purchase_priority = determine_purchase_priority(
         current_stock,
         required_stock,
@@ -3578,11 +3596,11 @@ fn build_unverified_shortage_item(part: &serde_json::Value) -> Option<LegacyShor
 
     let inventory_match_status = part_inventory_match_status(part);
     let summary = format!(
-        "{} ({})는 재고파일과 매칭되는 재고 행이 없어 현재고를 확정할 수 없습니다. 최근 3개년 입고 {:.0}, 출고 {:.0} (출고 {}건), 이동 순증감 {:.0}이 확인되어 재고 현황 재확인이 필요합니다.",
+        "{} ({}) has no matching stock row; current stock unconfirmed. Recent 3-year inbound: {} outbound: {} ({} transactions); net movement: {}. Stock status needs re-verification.",
         part_name, part_no, inbound_qty_sum, outbound_qty_sum, outbound_count, movement_net_qty
     );
     let document_request_hint = format!(
-        "{part_name} ({part_no}) 품목은 재고 미확인 상태라 스냅샷과 원본 재고 매핑부터 확인해줘"
+        "Verify snapshot and source inventory mapping first for {part_name} ({part_no}) due to unconfirmed stock status"
     );
 
     Some(LegacyShortageItem {
@@ -3600,10 +3618,10 @@ fn build_unverified_shortage_item(part: &serde_json::Value) -> Option<LegacyShor
         outbound_count,
         inventory_confirmed: false,
         inventory_match_status,
-        stock_status: "재고 미확인".into(),
+        stock_status: "Stock unverified".into(),
         unit_price: part_unit_price(part),
-        purchase_priority: "확인 필요".into(),
-        purchase_policy_note: "재고 미확인: 재고 행 매칭 후 구매 여부 판단 필요".into(),
+        purchase_priority: "Verification needed".into(),
+        purchase_policy_note: "Stock unverified: determine purchase need after stock row matching".into(),
         summary,
         document_request_hint,
     })
@@ -3686,24 +3704,24 @@ fn build_inventory_item(part: &serde_json::Value) -> Option<LegacyShortageItem> 
 
     let summary = if !inventory_confirmed {
         format!(
-            "{} ({})는 재고파일과 매칭되는 재고 행이 없어 현재고를 확정할 수 없습니다. 최근 3개년 출고합계 {:.0}개, 이동 순증감 {:.0}개입니다.",
+            "{} ({})는 재고파일과 매칭되는 재고 행이 없어 Current stock를 확정할 수 없습니다. 최근 3개년 출고합계 {:.0}개, Net movement {:.0}개입니다.",
             part_name, part_no, outbound_qty_sum, movement_net_qty
         )
     } else if let (Some(current), Some(required), Some(shortage_quantity)) =
         (current_stock, required_stock, shortage_quantity)
     {
         format!(
-            "{} ({})는 재고파일 기준 현재고 {:.0}개, 필수재고 {:.0}개라서 {:.0}개가 부족합니다. 최근 3개년 출고합계는 {:.0}개입니다.",
+            "{} ({})는 per inventory file Current stock {:.0}개, Required stock {:.0}개라서 {:.0}개가 부족합니다. 최근 3개년 출고합계는 {:.0}개입니다.",
             part_name, part_no, current, required, shortage_quantity, outbound_qty_sum
         )
     } else if let (Some(current), Some(required)) = (current_stock, required_stock) {
         format!(
-            "{} ({})는 재고파일 기준 현재고 {:.0}개, 필수재고 {:.0}개로 재고가 확인되었습니다. 최근 3개년 출고합계는 {:.0}개입니다.",
+            "{} ({}) confirmed with current stock {} and required stock {}. Recent 3-year total outbound: {}",
             part_name, part_no, current, required, outbound_qty_sum
         )
     } else {
         format!(
-            "{} ({})는 재고파일 기준 현재고 {}, 최근 3개년 출고합계 {:.0}개, 이동 순증감 {:.0}개입니다.",
+            "{} ({}) current stock {}, recent 3-year outbound {}, net movement: {}",
             part_name,
             part_no,
             format_count(current_stock),
@@ -3711,7 +3729,7 @@ fn build_inventory_item(part: &serde_json::Value) -> Option<LegacyShortageItem> 
             movement_net_qty
         )
     };
-    let document_request_hint = format!("{part_name} ({part_no}) 품목으로 구매 품의 문서 작성해줘");
+    let document_request_hint = format!("Create purchase request document for {part_name} ({part_no})");
 
     Some(LegacyShortageItem {
         part_name,
@@ -3745,27 +3763,27 @@ fn determine_purchase_priority(
     movement_net_qty: f64,
 ) -> String {
     if !inventory_confirmed {
-        return "확인 필요".into();
+        return "Verification needed".into();
     }
 
     let current_stock = current_stock.unwrap_or(0.0);
     if current_stock <= 0.0 {
-        return "긴급".into();
+        return "Urgent".into();
     }
 
     if let Some(required_stock) = required_stock {
         if current_stock < required_stock {
             if outbound_qty_sum > 0.0 || movement_net_qty < 0.0 {
-                return "높음".into();
+                return "High".into();
             }
-            return "중간".into();
+            return "Medium".into();
         }
     }
 
     if movement_net_qty < 0.0 && outbound_qty_sum > 0.0 {
-        "모니터링".into()
+        "Monitoring".into()
     } else {
-        "낮음".into()
+        "Low".into()
     }
 }
 
@@ -3781,13 +3799,13 @@ fn inventory_item_matches_query(item: &LegacyShortageItem, needle: Option<&str>)
 fn inventory_item_matches_status(item: &LegacyShortageItem, status: &str) -> bool {
     match status {
         "" | "all" => true,
-        "shortage" => item.stock_status == "재고 부족" || item.stock_status == "재고 없음",
-        "sufficient" => item.inventory_confirmed && item.stock_status == "재고 확인",
+        "shortage" => item.stock_status == "Stock shortage" || item.stock_status == "No stock",
+        "sufficient" => item.inventory_confirmed && item.stock_status == "Stock confirmed",
         "out_of_stock" => item
             .current_stock
             .map(|stock| stock <= 0.0)
             .unwrap_or(false),
-        "unverified" => !item.inventory_confirmed || item.stock_status == "재고 미확인",
+        "unverified" => !item.inventory_confirmed || item.stock_status == "Stock unverified",
         "confirmed" => item.inventory_confirmed,
         other => item.stock_status == other || item.inventory_match_status == other,
     }
@@ -3849,9 +3867,9 @@ fn sort_inventory_items(items: &mut [LegacyShortageItem], sort: &str) {
 }
 
 fn inventory_priority_rank(item: &LegacyShortageItem) -> u8 {
-    if item.stock_status == "재고 없음" {
+    if item.stock_status == "No stock" {
         0
-    } else if item.stock_status == "재고 부족" {
+    } else if item.stock_status == "Stock shortage" {
         1
     } else if !item.inventory_confirmed {
         2
@@ -3860,9 +3878,31 @@ fn inventory_priority_rank(item: &LegacyShortageItem) -> u8 {
     }
 }
 
+
+fn stock_status_korean(status: &str) -> &str {
+    match status {
+        "Stock shortage" => "재고 부족",
+        "No stock" => "재고 없음",
+        "Stock unverified" => "재고 미확인",
+        "Stock confirmed" => "재고 확인됨",
+        _ => status,
+    }
+}
+
+fn purchase_priority_korean(priority: &str) -> &str {
+    match priority {
+        "Urgent" => "긴급",
+        "High" => "상",
+        "Medium" => "중",
+        "Monitoring" => "관찰",
+        "Verification needed" => "확인 필요",
+        _ => priority,
+    }
+}
+
 fn build_confirmed_shortage_markdown_table(items: &[LegacyShortageItem]) -> String {
     if items.is_empty() {
-        return "해당 조건에 맞는 재고 부족 품목이 없습니다.".into();
+        return "조건에 맞는 부족 재고 품목이 없습니다.".into();
     }
 
     let mut lines = vec![
@@ -3878,7 +3918,7 @@ fn build_confirmed_shortage_markdown_table(items: &[LegacyShortageItem]) -> Stri
             format_count(item.current_stock),
             format_count(item.required_stock),
             format_count(item.shortage_quantity),
-            escape_markdown_table_cell(&item.stock_status),
+            escape_markdown_table_cell(stock_status_korean(&item.stock_status)),
         ));
     }
 
@@ -3891,7 +3931,7 @@ fn build_unverified_shortage_markdown_table(items: &[LegacyShortageItem]) -> Opt
     }
 
     let mut lines = vec![
-        "| 품목명 | 품번 | 최근 출고합계 | 이동 순증감 | 상태 |".to_string(),
+        "| 품목명 | 품번 | 최근 출고합계 | 이동 순량 | 상태 |".to_string(),
         "| --- | --- | ---: | ---: | --- |".to_string(),
     ];
 
@@ -3902,7 +3942,7 @@ fn build_unverified_shortage_markdown_table(items: &[LegacyShortageItem]) -> Opt
             escape_markdown_table_cell(&item.part_no),
             format_count(Some(item.outbound_qty_sum)),
             format_count(Some(item.movement_net_qty)),
-            escape_markdown_table_cell(&item.stock_status),
+            escape_markdown_table_cell(stock_status_korean(&item.stock_status)),
         ));
     }
 
@@ -3911,11 +3951,11 @@ fn build_unverified_shortage_markdown_table(items: &[LegacyShortageItem]) -> Opt
 
 fn build_inventory_markdown_table(items: &[LegacyShortageItem]) -> String {
     if items.is_empty() {
-        return "해당 조건에 맞는 품목이 없습니다.".into();
+        return "조건에 맞는 품목이 없습니다.".into();
     }
 
     let mut lines = vec![
-        "| 품목명 | 품번 | 현재고 | 필수재고 | 최근 출고합계 | 이동 순증감 | 재고확인상태 | 단가 | 구매 우선순위 |".to_string(),
+        "| 품목명 | 품번 | 현재고 | 필수재고 | 최근 출고합계 | 이동 순량 | 재고 상태 | 단가 | 구매 우선도 |".to_string(),
         "| --- | --- | ---: | ---: | ---: | ---: | --- | ---: | --- |".to_string(),
     ];
 
@@ -3928,9 +3968,9 @@ fn build_inventory_markdown_table(items: &[LegacyShortageItem]) -> String {
             format_count(item.required_stock),
             format_count(Some(item.outbound_qty_sum)),
             format_count(Some(item.movement_net_qty)),
-            escape_markdown_table_cell(&item.stock_status),
+            escape_markdown_table_cell(stock_status_korean(&item.stock_status)),
             format_price_plain(item.unit_price),
-            escape_markdown_table_cell(&item.purchase_priority),
+            escape_markdown_table_cell(purchase_priority_korean(&item.purchase_priority)),
         ));
     }
 
@@ -3939,20 +3979,20 @@ fn build_inventory_markdown_table(items: &[LegacyShortageItem]) -> String {
 
 fn build_inventory_report_csv(items: &[LegacyShortageItem]) -> String {
     let mut lines = vec![[
-        "품목명",
-        "품번",
-        "현재고",
-        "필수재고",
-        "부족수량",
-        "재고확인상태",
-        "재고매칭상태",
-        "단가",
-        "구매 우선순위",
-        "구매판단",
-        "최근 입고합계",
-        "최근 출고합계",
-        "이동 순증감",
-        "출고 건수",
+        "Item name",
+        "Item code",
+        "Current stock",
+        "Required stock",
+        "Shortage qty",
+        "Stock confirmation status",
+        "Stock match status",
+        "Unit price",
+        "Purchase priority",
+        "Purchase decision",
+        "Recent inbound total",
+        "Recent outbound total",
+        "Net movement",
+        "Outbound count",
     ]
     .join(",")];
 
@@ -4029,12 +4069,12 @@ fn resolve_snapshot_part_for_document(
 ) -> Result<serde_json::Value, AppError> {
     let explicit_part_name = part_name.map(|value| value.to_string()).or_else(|| {
         fields
-            .get("품명")
+            .get("Item name")
             .and_then(|value| meaningful_lookup_text(Some(value)))
     });
     let explicit_part_no = part_no.map(|value| value.to_string()).or_else(|| {
         fields
-            .get("품번")
+            .get("Item code")
             .and_then(|value| meaningful_lookup_text(Some(value)))
     });
 
@@ -4174,7 +4214,7 @@ mod tests {
             .uri("/document/create")
             .header("content-type", "application/json")
             .body(Body::from(
-                r#"{"template_id":"purchase_request","input_text":"품명: __UNIT_TEST_UNMATCHED_PART__\n수량: 3"}"#,
+                r#"{"template_id":"purchase_request","input_text":"Item name: __UNIT_TEST_UNMATCHED_PART__\nQuantity: 3"}"#,
             ))
             .unwrap();
 
@@ -4187,22 +4227,22 @@ mod tests {
         let payload: CreateResponse = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(
-            payload.updated_fields.get("품명"),
+            payload.updated_fields.get("Item name"),
             Some(&serde_json::Value::String(
                 "__UNIT_TEST_UNMATCHED_PART__".into()
             ))
         );
         assert_eq!(
-            payload.updated_fields.get("수량"),
+            payload.updated_fields.get("Quantity"),
             Some(&serde_json::Value::Number(3_u64.into()))
         );
         assert_eq!(
             payload.missing_fields,
-            vec!["납품업체", "구매사유", "담당자 직접입력", "부품역할"]
+            vec!["Supplier", "구매사유", "Responsible person (manual)", "Part role"]
         );
         assert_eq!(
             payload.next_question.as_deref(),
-            Some("납품업체는 어디로 할까?")
+            Some("Which supplier?")
         );
     }
 
@@ -4214,7 +4254,7 @@ mod tests {
             .uri("/document/create")
             .header("content-type", "application/json")
             .body(Body::from(
-                r#"{"template_id":"purchase_request","input_text":"품명: __UNIT_TEST_UNMATCHED_PART_TWO__\n수량: 3"}"#,
+                r#"{"template_id":"purchase_request","input_text":"Item name: __UNIT_TEST_UNMATCHED_PART_TWO__\nQuantity: 3"}"#,
             ))
             .unwrap();
 
@@ -4228,7 +4268,7 @@ mod tests {
             "template_id": "purchase_request",
             "session_id": created.session_id,
             "current_fields": created.updated_fields,
-            "user_message": "납품업체는 하이닉스야"
+            "user_message": "Supplier는 하이닉스야"
         });
 
         let fill_request = Request::builder()
@@ -4248,14 +4288,14 @@ mod tests {
 
         assert_eq!(
             payload.missing_fields,
-            vec!["구매사유", "담당자 직접입력", "부품역할"]
+            vec!["구매사유", "Responsible person (manual)", "Part role"]
         );
         assert_eq!(
             payload.next_question.as_deref(),
-            Some("구매사유는 어떻게 적을까요? 재고 부족, 설비 중단 위험, 사용 이력 중 확인된 근거를 알려주세요.")
+            Some("How should we state the purchase reason? Provide evidence: inventory shortage, equipment downtime risk, or documented usage history.")
         );
         assert_eq!(
-            payload.updated_fields.get("납품업체"),
+            payload.updated_fields.get("Supplier"),
             Some(&serde_json::Value::String("하이닉스야".into()))
         );
     }
@@ -4297,8 +4337,8 @@ mod tests {
             }
         });
         let mut fields = BTreeMap::new();
-        fields.insert("품명".into(), serde_json::Value::String("수기값".into()));
-        fields.insert("현재고".into(), serde_json::json!(999.0));
+        fields.insert("Item name".into(), serde_json::Value::String("수기값".into()));
+        fields.insert("Current stock".into(), serde_json::json!(999.0));
 
         merge_snapshot_part_into_fields(
             &mut fields,
@@ -4307,40 +4347,40 @@ mod tests {
         );
 
         assert_eq!(
-            fields.get("품명"),
+            fields.get("Item name"),
             Some(&serde_json::Value::String("AUTO PART".into()))
         );
         assert_eq!(
-            fields.get("품번"),
+            fields.get("Item code"),
             Some(&serde_json::Value::String("AUTO-001".into()))
         );
-        assert_eq!(fields.get("현재고"), Some(&serde_json::json!(12.0)));
-        assert_eq!(fields.get("필수재고량"), Some(&serde_json::json!(8.0)));
-        assert_eq!(fields.get("가용재고량"), Some(&serde_json::json!(10.0)));
-        assert_eq!(fields.get("과부족"), Some(&serde_json::json!(4.0)));
-        assert_eq!(fields.get("이동순증감"), Some(&serde_json::json!(-8.0)));
-        assert_eq!(fields.get("추정잔량"), Some(&serde_json::json!(4.0)));
+        assert_eq!(fields.get("Current stock"), Some(&serde_json::json!(12.0)));
+        assert_eq!(fields.get("Required stock qty"), Some(&serde_json::json!(8.0)));
+        assert_eq!(fields.get("Available stock qty"), Some(&serde_json::json!(10.0)));
+        assert_eq!(fields.get("Surplus/shortage"), Some(&serde_json::json!(4.0)));
+        assert_eq!(fields.get("Net movement"), Some(&serde_json::json!(-8.0)));
+        assert_eq!(fields.get("Projected balance"), Some(&serde_json::json!(4.0)));
         assert_eq!(
-            fields.get("재고확인상태"),
+            fields.get("Stock confirmation status"),
             Some(&serde_json::Value::String("확인".into()))
         );
         assert_eq!(
-            fields.get("재고매칭상태"),
+            fields.get("Stock match status"),
             Some(&serde_json::Value::String(
-                "재고/입고/출고 모두 매칭".into()
+                "All stock/inbound/outbound matched".into()
             ))
         );
-        assert_eq!(fields.get("총 교체수량"), Some(&serde_json::json!(11)));
+        assert_eq!(fields.get("Total replacement qty"), Some(&serde_json::json!(11)));
         assert_eq!(
-            fields.get("교체내역 유무"),
+            fields.get("Replacement history"),
             Some(&serde_json::Value::String("유".into()))
         );
         assert_eq!(
-            fields.get("입고일"),
+            fields.get("Inbound date"),
             Some(&serde_json::Value::String("2026-03-28".into()))
         );
         assert_eq!(
-            fields.get("사용일"),
+            fields.get("Last use date"),
             Some(&serde_json::Value::String("2026-04-21".into()))
         );
         assert_eq!(
@@ -4350,32 +4390,32 @@ mod tests {
             ))
         );
         assert_eq!(
-            fields.get("납품업체"),
+            fields.get("Supplier"),
             Some(&serde_json::Value::String("지정 협력사".into()))
         );
         assert_eq!(
-            fields.get("제조사"),
+            fields.get("Manufacturer"),
             Some(&serde_json::Value::String("OEM".into()))
         );
-        assert_eq!(fields.get("단가"), Some(&serde_json::json!(125000.0)));
+        assert_eq!(fields.get("Unit price"), Some(&serde_json::json!(125000.0)));
         assert_eq!(
-            fields.get("사용처"),
+            fields.get("Use location"),
             Some(&serde_json::Value::String("1호기".into()))
         );
         assert_eq!(
-            fields.get("문제점"),
+            fields.get("Issue"),
             Some(&serde_json::Value::String("베어링 마모".into()))
         );
         assert_eq!(
-            fields.get("교체사유"),
+            fields.get("Replacement reason"),
             Some(&serde_json::Value::String("예방 교체".into()))
         );
         assert_eq!(
-            fields.get("날짜1"),
+            fields.get("Date 1"),
             Some(&serde_json::Value::String("2026-04-01".into()))
         );
         assert_eq!(
-            fields.get("교체수량3"),
+            fields.get("교체Quantity3"),
             Some(&serde_json::Value::String("2".into()))
         );
         assert_eq!(
@@ -4414,7 +4454,7 @@ mod tests {
         assert_eq!(item.shortage_gap, Some(-3.0));
         assert_eq!(item.shortage_quantity, Some(3.0));
         assert!(item.inventory_confirmed);
-        assert_eq!(item.stock_status, "재고 부족");
+        assert_eq!(item.stock_status, "Stock shortage");
         assert!(item.summary.contains("3개가 부족한 상태"));
     }
 
@@ -4435,7 +4475,7 @@ mod tests {
             build_unverified_shortage_item(&part).expect("expected unverified shortage item");
         assert_eq!(item.current_stock, None);
         assert!(!item.inventory_confirmed);
-        assert_eq!(item.stock_status, "재고 미확인");
+        assert_eq!(item.stock_status, "Stock unverified");
         assert_eq!(item.inventory_match_status, "outbound_only");
         assert_eq!(item.shortage_quantity, None);
     }
@@ -4458,9 +4498,9 @@ mod tests {
         });
 
         let item = build_inventory_item(&part).expect("expected inventory item");
-        assert_eq!(item.stock_status, "재고 확인");
+        assert_eq!(item.stock_status, "Stock confirmed");
         assert_eq!(item.unit_price, Some(250000.0));
-        assert_eq!(item.purchase_priority, "모니터링");
+        assert_eq!(item.purchase_priority, "Monitoring");
         assert!(inventory_item_matches_status(&item, "sufficient"));
     }
 
@@ -4481,15 +4521,16 @@ mod tests {
             outbound_count: 2,
             inventory_confirmed: true,
             inventory_match_status: "matched_all".into(),
-            stock_status: "재고 부족".into(),
+            stock_status: "Stock shortage".into(),
             unit_price: Some(125000.0),
-            purchase_priority: "높음".into(),
+            purchase_priority: "High".into(),
             purchase_policy_note: "구매 진행".into(),
-            summary: "현재고 1개, 필수재고 11개라서 10개가 부족한 상태입니다.".into(),
+            summary: "Current stock 1개, Required stock 11개라서 10개가 부족한 상태입니다.".into(),
             document_request_hint: "TEST FILTER 문서 작성".into(),
         }]);
 
         assert!(table.contains("| 품목명 | 품번 | 현재고 | 필수재고 | 부족수량 | 상태 |"));
         assert!(table.contains("| TEST FILTER | TF-001 | 1 | 11 | 10 | 재고 부족 |"));
+
     }
 }

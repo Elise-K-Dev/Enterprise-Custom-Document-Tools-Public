@@ -1,0 +1,293 @@
+/* CDXVI overlay (v9)
+ * - Thinking toggle keeps OWUI native styling; JS forces ON by clicking
+ *   when aria-label="Instant Mode".
+ * - "Agentic Mode" chip: always-lit teal pill. JS swaps its DOM position
+ *   with OWUI's native Thinking toggle; CSS does not control order.
+ * - Voice / microphone / call buttons hidden (사내 챗봇 정책).
+ * - OWUI native reasoning-effort dropdown menu hidden (we drive state
+ *   directly via the model.params default; users only need ON/OFF).
+ */
+
+/* ---------- Agentic Mode chip ---------- */
+.cdxvi-agentic-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  margin: 0 6px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+  border: 1px solid rgba(13, 148, 136, 0.45);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  line-height: 1.2;
+  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.15), 0 1px 2px rgba(13, 148, 136, 0.25);
+  transition: filter 120ms ease, transform 100ms ease;
+}
+
+
+.cdxvi-agentic-button:hover { filter: brightness(1.08); }
+.cdxvi-agentic-button:active { transform: scale(0.97); }
+
+.cdxvi-agentic-button::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #86efac;
+  box-shadow: 0 0 6px rgba(134, 239, 172, 0.9), 0 0 2px rgba(134, 239, 172, 1);
+  animation: cdxvi-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes cdxvi-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+
+
+
+/* ---------- Thinking segmented toggle ---------- */
+.cdxvi-thinking-toggle.cdxvi-thinking-segmented {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  width: 138px !important;
+  min-width: 138px !important;
+  max-width: 138px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+  padding: 2px !important;
+  margin: 0 14px 0 4px !important;
+  gap: 0 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(148, 163, 184, 0.32) !important;
+  background: rgba(248, 250, 252, 0.9) !important;
+  color: #64748b !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+  position: relative !important;
+  z-index: 5 !important;
+  pointer-events: auto !important;
+}
+
+.cdxvi-thinking-toggle.cdxvi-thinking-segmented > svg {
+  display: none !important;
+}
+
+.cdxvi-thinking-segment-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 9999px;
+  isolation: isolate;
+}
+
+.cdxvi-thinking-segment-track::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
+  transform: translate3d(0, 0, 0);
+  transition: transform 230ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+  pointer-events: none;
+}
+
+.cdxvi-thinking-segment-track.cdxvi-thinking-active::before {
+  transform: translate3d(100%, 0, 0);
+}
+
+.cdxvi-thinking-segment-option {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 8px;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  line-height: 1;
+  white-space: nowrap;
+  transition: color 160ms ease;
+}
+
+.cdxvi-thinking-segment-option.cdxvi-active {
+  color: #4c1d95;
+}
+
+.dark .cdxvi-thinking-toggle.cdxvi-thinking-segmented {
+  border-color: rgba(129, 140, 248, 0.28) !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .cdxvi-thinking-segment-track::before {
+  background: rgba(109, 40, 217, 0.78);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+}
+
+.dark .cdxvi-thinking-segment-option {
+  color: #cbd5e1;
+}
+
+.dark .cdxvi-thinking-segment-option.cdxvi-active {
+  color: #ffffff;
+}
+
+/* ---------- Speech-bubble popover ---------- */
+.cdxvi-agentic-popover {
+  display: none;
+  position: fixed;
+  z-index: 2147483600;
+  padding: 12px 14px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 400;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  min-width: 240px;
+  max-width: 320px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  text-align: left;
+  cursor: default;
+  pointer-events: auto;
+}
+
+.cdxvi-agentic-popover.cdxvi-show {
+  display: block;
+  animation: cdxvi-bubble-in 140ms ease-out;
+}
+
+@keyframes cdxvi-bubble-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cdxvi-agentic-popover::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #ffffff;
+  filter: drop-shadow(0 2px 1px rgba(15, 23, 42, 0.06));
+  top: 100%;
+  left: var(--cdxvi-tail-x, 50%);
+  transform: translateX(-50%);
+}
+
+.cdxvi-agentic-popover.cdxvi-below::after {
+  top: auto;
+  bottom: 100%;
+  border-top: none;
+  border-bottom: 8px solid #ffffff;
+  filter: drop-shadow(0 -2px 1px rgba(15, 23, 42, 0.06));
+}
+
+.cdxvi-agentic-popover-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #0d9488;
+  letter-spacing: 0.02em;
+}
+
+.cdxvi-agentic-popover ul {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.cdxvi-agentic-popover li {
+  margin: 4px 0;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.dark .cdxvi-agentic-popover {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.dark .cdxvi-agentic-popover::after { border-top-color: #1e293b; }
+.dark .cdxvi-agentic-popover.cdxvi-below::after { border-bottom-color: #1e293b; }
+.dark .cdxvi-agentic-popover-title { color: #5eead4; }
+.dark .cdxvi-agentic-popover li { color: #cbd5e1; }
+
+/* ---------- Hide voice / mic / call buttons ---------- */
+button[aria-label*="Voice" i],
+button[aria-label*="Microphone" i],
+button[aria-label*="Speech to Text" i],
+button[aria-label*="Speech-to-Text" i],
+button[aria-label*="Call" i],
+button[aria-label*="Audio Call" i],
+button[aria-label*="음성"],
+button[aria-label*="마이크"],
+button[aria-label*="통화"],
+[aria-label*="Voice Input" i],
+[aria-label*="Voice Mode" i] {
+  display: none !important;
+}
+
+
+.cdxvi-send-fallback {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* ---------- Hide OWUI native reasoning-effort dropdown/menu ----------
+ * The Thinking toggle in OWUI sometimes opens a small menu offering
+ * low/medium/high. We expose only a binary ON/OFF, so suppress the menu.
+ */
+[role="menu"][aria-label*="reasoning" i]:not(.cdxvi-agentic-popover),
+[role="menu"][aria-label*="thinking" i]:not(.cdxvi-agentic-popover),
+[role="menu"][aria-label*="effort" i]:not(.cdxvi-agentic-popover),
+[role="dialog"][aria-label*="reasoning" i]:not(.cdxvi-agentic-popover),
+[role="dialog"][aria-label*="thinking" i]:not(.cdxvi-agentic-popover),
+[role="dialog"][aria-label*="effort" i]:not(.cdxvi-agentic-popover),
+[role="tooltip"][aria-label*="reasoning" i]:not(.cdxvi-agentic-popover),
+[role="tooltip"][aria-label*="thinking" i]:not(.cdxvi-agentic-popover),
+[role="listbox"][aria-label*="reasoning" i]:not(.cdxvi-agentic-popover),
+[role="listbox"][aria-label*="effort" i]:not(.cdxvi-agentic-popover),
+[class*="reasoning-effort" i]:not(.cdxvi-agentic-popover):not(.cdxvi-agentic-button),
+[class*="reasoning_effort" i]:not(.cdxvi-agentic-popover):not(.cdxvi-agentic-button),
+[data-reasoning-effort-menu] {
+  display: none !important;
+}
+
+/* ---------- Hide non-CDXVI "agentic"-labeled elements ----------
+ * OWUI 0.9.5+ has its own native Agentic Mode toggle; keep only our chip
+ * to avoid two confusing controls.
+ */
+button[aria-label*="agentic" i]:not(.cdxvi-agentic-button),
+button[title*="agentic" i]:not(.cdxvi-agentic-button),
+[role="button"][aria-label*="agentic" i]:not(.cdxvi-agentic-button),
+[data-mode*="agentic" i]:not(.cdxvi-agentic-button),
+[class*="agentic-mode" i]:not(.cdxvi-agentic-button):not(.cdxvi-agentic-popover) {
+  display: none !important;
+}

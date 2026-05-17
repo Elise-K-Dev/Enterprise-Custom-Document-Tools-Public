@@ -15,22 +15,35 @@ build/
 open-webui/.env.openwebui
 open-webui/data/
 
-python-service/.venv/
-python-service/app/__pycache__/
-python-service/legacy-md-indexer-main/processed_md/
-python-service/legacy-md-indexer-main/users.json
-python-service/legacy-md-indexer-main/setting.conf
+search-service/.venv/
+search-service/app/__pycache__/
+search-service/output/
+search-service/legacy-md-indexer-main/processed_md/
+search-service/legacy-md-indexer-main/file_catalog.json
+search-service/legacy-md-indexer-main/users.json
+search-service/legacy-md-indexer-main/setting.conf
 
 rust-service/target/
+rust-service/DB/input/
 rust-service/DB/logs/
 rust-service/DB/output/
 
 markdown-pdf-service/output/
 markdown-pdf-service/output.bak.*/
-python-service/*.egg-info/
+search-service/*.egg-info/
 
 web-service/.venv/
 web-service/app/__pycache__/
 web-service/*.egg-info/
 .ms-playwright/
-.claude/
+scripts/admin/
+
+# Backup and local edit leftovers
+*.bak.*
+*.before*
+*.tmp
+*.swp
+*~
+
+# Markdown-pdf egg-info
+markdown-pdf-service/*.egg-info/

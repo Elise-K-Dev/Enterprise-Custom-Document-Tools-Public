@@ -24,7 +24,11 @@ app.add_middleware(
 )
 
 
-PUBLIC_BASE_URL = os.getenv("WEB_SERVICE_PUBLIC_BASE_URL", "http://127.0.0.1:8004").rstrip("/")
+PUBLIC_BASE_URL = (
+    os.getenv("WEB_SERVICE_PUBLIC_BASE_URL")
+    or os.getenv("PORT_PROJECT_PUBLIC_BASE_URL")
+    or "http://192.168.100.202"
+).rstrip("/")
 INTERNAL_TOKEN_HEADER = "x-port-project-internal-token"
 OPEN_WEBUI_USER_EMAIL_HEADER = "x-openwebui-user-email"
 OPEN_WEBUI_USER_ID_HEADER = "x-openwebui-user-id"

@@ -1,32 +1,4 @@
 services:
-  open-webui:
-    image: ${OPEN_WEBUI_IMAGE:-open-webui-vllm-local}
-    env_file:
-      - ./open-webui/.env.openwebui
-    ports:
-      - "3000:8080"
-    volumes:
-      - open-webui-data:/app/backend/data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      document-service:
-        condition: service_started
-      parser-service:
-        condition: service_healthy
-      markdown-pdf-service:
-        condition: service_healthy
-      web-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "--silent", "--fail", "http://127.0.0.1:8080/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - port-project
-
   document-service:
     image: port-project-document-service
     build:
@@ -39,7 +11,7 @@ services:
     environment:
       DOCUMENT_SERVICE_HOST: 0.0.0.0
       DOCUMENT_SERVICE_PORT: 8001
-      DOCUMENT_SERVICE_PUBLIC_BASE_URL: ${DOCUMENT_SERVICE_PUBLIC_BASE_URL:-http://127.0.0.1:8001}
+      DOCUMENT_SERVICE_PUBLIC_BASE_URL: ${DOCUMENT_SERVICE_PUBLIC_BASE_URL:-http://192.168.100.202}
       PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
       PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS: ${PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS:-3600}
       MARKDOWN_PDF_INTERNAL_BASE_URL: http://markdown-pdf-service:8003
@@ -54,33 +26,30 @@ services:
     networks:
       - port-project
 
-  parser-service:
-    image: port-project-parser-service
+  search-service:
+    image: port-project-search-service
     build:
-      context: ./python-service
+      context: ./search-service
       dockerfile: Dockerfile
       network: host
       args:
         PYTHON_BASE_IMAGE: port-project-base-python:3.11-slim
     environment:
-      PARSER_SERVICE_HOST: 0.0.0.0
-      PARSER_SERVICE_PORT: 8002
-      DOCUMENT_FILLER_API_URL: ${DOCUMENT_FILLER_API_URL:-http://host.docker.internal:8000/v1/chat/completions}
-      DOCUMENT_FILLER_MODEL_ID: ${DOCUMENT_FILLER_MODEL_ID:-your-model-id}
+      SEARCH_SERVICE_HOST: 0.0.0.0
+      SEARCH_SERVICE_PORT: 8002
+      DOCUMENT_FILLER_API_URL: ${DOCUMENT_FILLER_API_URL:-http://192.168.100.13:8000/v1/chat/completions}
+      DOCUMENT_FILLER_MODEL_ID: ${DOCUMENT_FILLER_MODEL_ID:-gemma-4-31b-it}
+      SEARCH_HIGH_RANK_GROUPS: ${SEARCH_HIGH_RANK_GROUPS:-개발자,관리자,팀장}
+      SEARCH_LOW_RANK_GROUPS: ${SEARCH_LOW_RANK_GROUPS:-사원}
+      SEARCH_EMAIL_RANK_OVERRIDES: ${SEARCH_EMAIL_RANK_OVERRIDES:-}
       PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
-      PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS: ${PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS:-3600}
       LEGACY_MD_INDEXER_DIR: /app/legacy-md-indexer-main
-      PARSER_PDF_OUTPUT_DIR: /app/output/pdf
-      PARSER_PDF_PUBLIC_BASE_URL: ${PARSER_PDF_PUBLIC_BASE_URL:-http://127.0.0.1:8002}
-      CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
-      CHROMIUM_DISABLE_SANDBOX: "true"
     ports:
       - "8002:8002"
     volumes:
-      - ./python-service/output:/app/output
-      - ./python-service/legacy-md-indexer-main/processed_md:/app/legacy-md-indexer-main/processed_md:ro
-      - ./python-service/legacy-md-indexer-main/file_catalog.json:/app/legacy-md-indexer-main/file_catalog.json:ro
-      - ./python-service/legacy-md-indexer-main/users.json:/app/legacy-md-indexer-main/users.json:ro
+      - ./search-service/legacy-md-indexer-main/processed_md:/app/legacy-md-indexer-main/processed_md:ro
+      - ./search-service/legacy-md-indexer-main/file_catalog.json:/app/legacy-md-indexer-main/file_catalog.json:ro
+      - ./search-service/legacy-md-indexer-main/users.json:/app/legacy-md-indexer-main/users.json:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -103,16 +72,20 @@ services:
     environment:
       MARKDOWN_PDF_SERVICE_HOST: 0.0.0.0
       MARKDOWN_PDF_SERVICE_PORT: 8003
-      MARKDOWN_PDF_PUBLIC_BASE_URL: ${MARKDOWN_PDF_PUBLIC_BASE_URL:-http://127.0.0.1:8003}
+      MARKDOWN_PDF_PUBLIC_BASE_URL: ${MARKDOWN_PDF_PUBLIC_BASE_URL:-http://192.168.100.202}
       MARKDOWN_PDF_OUTPUT_DIR: /app/output
       PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
       PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS: ${PORT_PROJECT_DOWNLOAD_TOKEN_TTL_SECONDS:-3600}
+      MARKDOWN_PDF_RETENTION_CONFIG: /app/config/retention.yml
+      MARKDOWN_PDF_GRANT_DB: /app/output/.grants.db
+      MARKDOWN_PDF_LOG_LEVEL: ${MARKDOWN_PDF_LOG_LEVEL:-INFO}
       CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
       CHROMIUM_DISABLE_SANDBOX: "true"
     ports:
       - "${MARKDOWN_PDF_SERVICE_PORT:-8003}:8003"
     volumes:
       - ./markdown-pdf-service/output:/app/output
+      - ./markdown-pdf-service/config:/app/config:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -135,7 +108,7 @@ services:
     environment:
       WEB_SERVICE_HOST: 0.0.0.0
       WEB_SERVICE_PORT: 8004
-      WEB_SERVICE_PUBLIC_BASE_URL: ${WEB_SERVICE_PUBLIC_BASE_URL:-http://127.0.0.1:8004}
+      WEB_SERVICE_PUBLIC_BASE_URL: ${WEB_SERVICE_PUBLIC_BASE_URL:-http://192.168.100.202}
       PORT_PROJECT_INTERNAL_TOKEN: ${PORT_PROJECT_INTERNAL_TOKEN:?PORT_PROJECT_INTERNAL_TOKEN is required}
     ports:
       - "${WEB_SERVICE_PORT:-8004}:8004"
@@ -150,9 +123,24 @@ services:
     networks:
       - port-project
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - port-project
+
 networks:
   port-project:
     name: port-project
 
 volumes:
-  open-webui-data:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,30 @@
+# Download artifact retention policy.
+# Edits here are picked up by the markdown-pdf-service background cleanup
+# worker on its next poll (default every 60s) without restart — true hot-swap.
+# Per-artifact overrides set via /admin/grants endpoints take precedence over
+# these defaults.
+
+# Default time-to-live for newly issued download grants, in seconds.
+# 24h = 86400. Negotiate with the client side before lowering.
+default_ttl_seconds: 86400
+
+# If set to an integer N, each grant allows at most N downloads before
+# being marked expired. Leave null for unlimited within TTL.
+default_max_downloads: null
+
+# If true, files are unlinked from disk as soon as the first download
+# completes (TTL still serves as a ceiling for unused grants).
+delete_on_download: false
+
+# Cleanup worker poll interval, in seconds. Lower = faster reaction to
+# policy edits and expiries; higher = less I/O.
+cleanup_interval_seconds: 60
+
+# Grace period after expires_at before the worker actually unlinks the
+# file. Useful if a slow download is in progress when the grant expires.
+delete_grace_seconds: 30
+
+# Note: there is no rank gate on tool usage. Sensitivity is enforced at
+# the search/data layer (search-service.is_sensitive_low_rank_query),
+# so gating output format added complexity without real protection.
+# Admin endpoints gate on OWUI role=admin, not on rank.

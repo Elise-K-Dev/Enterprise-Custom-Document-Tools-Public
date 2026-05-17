@@ -1,0 +1,30 @@
+# Cloudflare Tunnel config template.
+# After `cloudflared tunnel create <name>` writes ~/.cloudflared/<TUNNEL_ID>.json,
+# copy this file to ~/.cloudflared/config.yml and replace placeholders.
+#
+# Hostname pattern below assumes you own example.com and want:
+#   https://app.example.com      -> Open WebUI (port 3000, the only thing end users hit)
+#   https://docs.example.com     -> document-service (8001) — needed because download links
+#   https://parser.example.com   -> search-service (8002)    — point at these public URLs
+#   https://render.example.com   -> markdown-pdf (8003)
+#   https://web.example.com      -> web-service (8004)
+#
+# If you only want users to reach Open WebUI and never expose tool servers publicly,
+# delete the docs/parser/render/web entries below AND keep the *_PUBLIC_BASE_URL
+# variables in .env on http://127.0.0.1 (download links will only work from the host).
+
+tunnel: REPLACE_WITH_TUNNEL_ID
+credentials-file: ~/.cloudflared/REPLACE_WITH_TUNNEL_ID.json
+
+ingress:
+  - hostname: app.example.com
+    service: http://127.0.0.1:3000
+  - hostname: docs.example.com
+    service: http://127.0.0.1:8001
+  - hostname: parser.example.com
+    service: http://127.0.0.1:8002
+  - hostname: render.example.com
+    service: http://127.0.0.1:8003
+  - hostname: web.example.com
+    service: http://127.0.0.1:8004
+  - service: http_status:404

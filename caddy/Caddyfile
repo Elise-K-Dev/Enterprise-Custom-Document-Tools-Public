@@ -1,0 +1,59 @@
+{
+	# Disable admin API; we don't need runtime reconfig
+	admin off
+	# Caddy logs to stderr (captured by docker logs)
+	auto_https off
+}
+
+:80 {
+	log {
+		output stdout
+		format console
+	}
+
+	# Parser service exceptions (must come before broader /document/* matcher)
+	@parser_specific {
+		path /document/fill-fields
+		path /search /search/*
+		path /parser /parser/*
+	}
+	handle @parser_specific {
+		reverse_proxy 127.0.0.1:8002
+	}
+
+	# Markdown PDF service (rendering + download + retention admin)
+	@markdown_pdf {
+		path /render /render/*
+		path /download /download/*
+		path /admin /admin/*
+	}
+	handle @markdown_pdf {
+		reverse_proxy 127.0.0.1:8003
+	}
+
+	# Web service
+	@web {
+		path /web /web/*
+	}
+	handle @web {
+		reverse_proxy 127.0.0.1:8004
+	}
+
+	# Document service (catch-all for /document/* not already matched above)
+	@document {
+		path /document /document/*
+	}
+	handle @document {
+		reverse_proxy 127.0.0.1:8001
+	}
+
+	# Root health
+	handle / {
+		respond "Enterprise Custom Document Tools gateway" 200
+	}
+
+	# Gateway health endpoint (does not conflict with tool /health paths)
+	handle /gateway/health {
+		respond "ok" 200
+	}
+}
